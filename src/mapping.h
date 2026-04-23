@@ -86,8 +86,8 @@ namespace gp {
   constexpr uint16_t kLT      = 2;   // buttons1 bit2  L2 digital  (unverified)
   constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (confirmed)
   // System buttons
-  constexpr uint16_t kMenu    = 1;   // buttons1 bit1  3-dots/Menu  (confirmed)
-  constexpr uint16_t kOptions = 5;   // buttons1 bit5  3-lines/Options  (confirmed)
+  constexpr uint16_t kAssistant = 1;   // buttons1 bit1  Assistant  (confirmed)
+  constexpr uint16_t kOptions = 5;   // buttons1 bit5  3-lines/Options/Menu  (confirmed)
   constexpr uint16_t kGuide   = 4;   // buttons1 bit4  Stadia/Guide  (confirmed)
   constexpr uint16_t kBack    = 6;   // buttons1 bit6  Create/Back  (unverified)
   constexpr uint16_t kCapture = 0;   // buttons1 bit0  Capture/Screenshot  (confirmed)
@@ -193,10 +193,10 @@ constexpr Action kDualSenseGamepadActions[kButtonCount] = {
     {ActionType::kGamepadButton, gp::kLT},      // L2 digital   → LT
     {ActionType::kGamepadButton, gp::kRT},      // R2 digital   → RT
     {ActionType::kGamepadButton, gp::kBack},    // Create       → Back
-    {ActionType::kGamepadButton, gp::kMenu},    // Options      → Menu
+    {ActionType::kGamepadButton, gp::kOptions},   // Options      → Options
     {ActionType::kGamepadButton, gp::kL3},      // L3           → L3
     {ActionType::kGamepadButton, gp::kR3},      // R3           → R3
-    {ActionType::kGamepadButton, gp::kCapture}, // Touchpad     → Capture
+    {ActionType::kNone, 0},                     // Touchpad     → none
     {ActionType::kGamepadButton, gp::kGuide},   // PS           → Guide
     {ActionType::kNone, 0},                     // Mute         → none
     {ActionType::kNone, 0},                     // LeftPaddle   → none (no paddles on standard DS)
@@ -219,7 +219,7 @@ constexpr Action kDualSenseGamepadActions[kButtonCount] = {
     {ActionType::kNone, 0},                     // RStick6      → analog
     {ActionType::kNone, 0},                     // RStick7      → analog
     {ActionType::kNone, 0},                     // RStick8      → analog
-    {ActionType::kNone, 0},                     // Fn1          → none
+    {ActionType::kNone, 0},                     // Fn1          → none (no Fn1 on standard DS)
     {ActionType::kNone, 0},                     // Fn2          → none
 };
 
@@ -233,10 +233,10 @@ constexpr Action kDualSenseEdgeGamepadActions[kButtonCount] = {
     {ActionType::kGamepadButton, gp::kLT},      // L2 digital   → LT
     {ActionType::kGamepadButton, gp::kRT},      // R2 digital   → RT
     {ActionType::kGamepadButton, gp::kBack},    // Create       → Back
-    {ActionType::kGamepadButton, gp::kMenu},    // Options      → Menu
+    {ActionType::kGamepadButton, gp::kOptions},   // Options      → Options
     {ActionType::kGamepadButton, gp::kL3},      // L3           → L3
     {ActionType::kGamepadButton, gp::kR3},      // R3           → R3
-    {ActionType::kGamepadButton, gp::kCapture}, // Touchpad     → Capture
+    {ActionType::kNone, 0},                     // Touchpad     → none
     {ActionType::kGamepadButton, gp::kGuide},   // PS           → Guide
     {ActionType::kNone, 0},                     // Mute         → none
     {ActionType::kGamepadButton, gp::kL3},      // LeftPaddle   → L3
@@ -259,8 +259,8 @@ constexpr Action kDualSenseEdgeGamepadActions[kButtonCount] = {
     {ActionType::kNone, 0},                     // RStick6      → analog
     {ActionType::kNone, 0},                     // RStick7      → analog
     {ActionType::kNone, 0},                     // RStick8      → analog
-    {ActionType::kNone, 0},                     // Fn1          → none
-    {ActionType::kNone, 0},                     // Fn2          → none
+    {ActionType::kGamepadButton, gp::kAssistant}, // Fn1          → Assistant
+    {ActionType::kGamepadButton, gp::kCapture}, // Fn2          → Capture
 };
 
 struct GamepadMappingSet {
