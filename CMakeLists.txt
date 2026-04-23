@@ -27,6 +27,15 @@ add_executable(feather_dualsense
   src/device_out.cc
 )
 
+
+set(PIO_USB_HEADER_DIR "${PICO_SDK_PATH}/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB/src")
+if (EXISTS "${PIO_USB_HEADER_DIR}/pio_usb.h")
+  set(HAVE_PIO_USB_HEADER 1)
+  target_include_directories(feather_dualsense PRIVATE "${PIO_USB_HEADER_DIR}")
+else ()
+  set(HAVE_PIO_USB_HEADER 0)
+endif ()
+
 target_include_directories(feather_dualsense PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_BINARY_DIR}/generated
@@ -52,6 +61,7 @@ target_compile_definitions(feather_dualsense PRIVATE
   CFG_TUH_ENABLED=1
   CFG_TUD_ENABLED=1
   HOST_VBUS_EN_PIN=${HOST_VBUS_EN_PIN}
+  HAVE_PIO_USB_HEADER=${HAVE_PIO_USB_HEADER}
 )
 
 target_link_libraries(feather_dualsense PRIVATE

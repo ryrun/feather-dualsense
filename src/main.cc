@@ -6,7 +6,7 @@
 #include "pico/stdlib.h"
 #include "tusb.h"
 
-#if CFG_TUH_RPI_PIO_USB
+#if defined(HAVE_PIO_USB_HEADER) && HAVE_PIO_USB_HEADER
 #include "pio_usb.h"
 #endif
 
@@ -17,7 +17,7 @@
 output_state g_output_state{};
 
 namespace {
-#if CFG_TUH_RPI_PIO_USB
+#if defined(HAVE_PIO_USB_HEADER) && HAVE_PIO_USB_HEADER && CFG_TUH_RPI_PIO_USB
 repeating_timer_t g_host_sof_timer;
 
 bool host_sof_timer_cb(repeating_timer_t*) {
@@ -33,7 +33,7 @@ void extra_init() {
   gpio_put(HOST_VBUS_EN_PIN, 1);
 #endif
 
-#if CFG_TUH_RPI_PIO_USB
+#if defined(HAVE_PIO_USB_HEADER) && HAVE_PIO_USB_HEADER && CFG_TUH_RPI_PIO_USB
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
   tuh_configure(1, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
   add_repeating_timer_us(-1000, host_sof_timer_cb, nullptr, &g_host_sof_timer);

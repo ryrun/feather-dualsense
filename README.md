@@ -58,6 +58,8 @@ This firmware initializes RP2040 PIO USB host support and starts a 1 ms SOF time
 
 If your board revision requires explicit VBUS power switching, set `-DHOST_VBUS_EN_PIN=<gpio>` at CMake configure time. Default is `-1` (disabled).
 
+If the pico-sdk used for build does not contain Pico-PIO-USB (`pio_usb.h`), the firmware build falls back to no PIO-host frame helper and host enumeration over PIO USB will not work until a compatible pico-sdk is used.
+
 ## Flash
 
 1. Hold **BOOTSEL** on Feather and connect USB.
