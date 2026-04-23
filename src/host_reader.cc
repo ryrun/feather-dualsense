@@ -28,14 +28,12 @@ struct ActiveController {
   uint64_t buttons;
   int32_t gyro_mouse_x_remainder_q16;
   int32_t gyro_mouse_y_remainder_q16;
-  // Gyro bias: stored in Q8 for fractional precision. Updated via slow EMA
-  // when the gyro appears to be at rest (corrected value below threshold).
-  // First kGyroBiasSamples reports are used for fast initial calibration.
+  // Gyro bias calibration: accumulate first kGyroBiasSamples reports at rest.
   int32_t gyro_calib_sum_x;
   int32_t gyro_calib_sum_y;
   uint16_t gyro_calib_count;
-  int32_t gyro_bias_x_q8;
-  int32_t gyro_bias_y_q8;
+  int16_t gyro_bias_x;
+  int16_t gyro_bias_y;
   bool touch0_active;
   uint8_t touch0_id;
   int16_t touch0_last_y;
@@ -77,8 +75,8 @@ void ClearHidState() {
   g_controller.gyro_calib_sum_x = 0;
   g_controller.gyro_calib_sum_y = 0;
   g_controller.gyro_calib_count = 0;
-  g_controller.gyro_bias_x_q8 = 0;
-  g_controller.gyro_bias_y_q8 = 0;
+  g_controller.gyro_bias_x = 0;
+  g_controller.gyro_bias_y = 0;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
   memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
 }
@@ -322,40 +320,23 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
   const int16_t gyro_for_x = ReadLe16(&report[report_base + kGyroY]);
   const int16_t gyro_for_y = ReadLe16(&report[report_base + kGyroX]);
 
-  // Fast initial calibration: average the first kGyroBiasSamples reports.
+  // Bias calibration: average the first kGyroBiasSamples reports at rest.
   constexpr uint16_t kGyroBiasSamples = 250;
   if (g_controller.gyro_calib_count < kGyroBiasSamples) {
     g_controller.gyro_calib_sum_x += gyro_for_x;
     g_controller.gyro_calib_sum_y += gyro_for_y;
     ++g_controller.gyro_calib_count;
     if (g_controller.gyro_calib_count == kGyroBiasSamples) {
-      g_controller.gyro_bias_x_q8 =
-          (g_controller.gyro_calib_sum_x << 8) / kGyroBiasSamples;
-      g_controller.gyro_bias_y_q8 =
-          (g_controller.gyro_calib_sum_y << 8) / kGyroBiasSamples;
+      g_controller.gyro_bias_x = static_cast<int16_t>(
+          g_controller.gyro_calib_sum_x / kGyroBiasSamples);
+      g_controller.gyro_bias_y = static_cast<int16_t>(
+          g_controller.gyro_calib_sum_y / kGyroBiasSamples);
     }
     return false;
   }
 
-  // Continuous adaptive bias: update via slow EMA (alpha = 1/256, ~1s time
-  // constant at 250Hz) whenever the corrected value is below the rest threshold.
-  constexpr int16_t kRestThreshold = 10;
-  constexpr int kEmaShift = 8;  // alpha = 1/256
-  const int16_t corrected_x =
-      gyro_for_x - static_cast<int16_t>(g_controller.gyro_bias_x_q8 >> 8);
-  const int16_t corrected_y =
-      gyro_for_y - static_cast<int16_t>(g_controller.gyro_bias_y_q8 >> 8);
-  if (Abs32(corrected_x) < kRestThreshold) {
-    g_controller.gyro_bias_x_q8 +=
-        ((static_cast<int32_t>(gyro_for_x) << 8) - g_controller.gyro_bias_x_q8)
-        >> kEmaShift;
-  }
-  if (Abs32(corrected_y) < kRestThreshold) {
-    g_controller.gyro_bias_y_q8 +=
-        ((static_cast<int32_t>(gyro_for_y) << 8) - g_controller.gyro_bias_y_q8)
-        >> kEmaShift;
-  }
-
+  const int16_t corrected_x = gyro_for_x - g_controller.gyro_bias_x;
+  const int16_t corrected_y = gyro_for_y - g_controller.gyro_bias_y;
   *mouse_x = ConsumeMouseDelta(
       static_cast<int32_t>(ShapeGyroDeltaQ16(corrected_x) * GYRO_MOUSE_X_FACTOR),
       &g_controller.gyro_mouse_x_remainder_q16);
