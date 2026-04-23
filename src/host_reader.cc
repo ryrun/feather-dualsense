@@ -819,24 +819,24 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
                    ParseLeftStickButtons(report, len)  |
                    ParseRightStickButtons(report, len));
     ParseTouchpadClick(report, len);
-  }
-  int8_t scroll = 0;
-  if (ParseTouchScroll(report, len, &scroll)) {
-    g_controller.mouse.x = 0;
-    g_controller.mouse.y = 0;
-    g_controller.mouse.wheel = scroll;
-    g_controller.mouse.pan = 0;
-    device_out::SendMouse(g_controller.mouse);
-    g_controller.mouse.wheel = 0;
-  }
-  int16_t mouse_x = 0;
-  int16_t mouse_y = 0;
-  if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
-    g_controller.mouse.x = mouse_x;
-    g_controller.mouse.y = mouse_y;
-    g_controller.mouse.wheel = 0;
-    g_controller.mouse.pan = 0;
-    device_out::SendMouse(g_controller.mouse);
+    int8_t scroll = 0;
+    if (ParseTouchScroll(report, len, &scroll)) {
+      g_controller.mouse.x = 0;
+      g_controller.mouse.y = 0;
+      g_controller.mouse.wheel = scroll;
+      g_controller.mouse.pan = 0;
+      device_out::SendMouse(g_controller.mouse);
+      g_controller.mouse.wheel = 0;
+    }
+    int16_t mouse_x = 0;
+    int16_t mouse_y = 0;
+    if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
+      g_controller.mouse.x = mouse_x;
+      g_controller.mouse.y = mouse_y;
+      g_controller.mouse.wheel = 0;
+      g_controller.mouse.pan = 0;
+      device_out::SendMouse(g_controller.mouse);
+    }
   }
   tuh_hid_receive_report(dev_addr, instance);
 }
