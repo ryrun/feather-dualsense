@@ -71,22 +71,24 @@ struct Action {
 // 0-7:  bit position in GamepadReport::buttons1
 // 8-14: bit position in GamepadReport::buttons2 (subtract 8 for actual bit)
 namespace gp {
-  // Face buttons — derived from confirmed X=bit12 (usage 0x04) + adjacent HID usages
-  constexpr uint16_t kY       = 11;  // buttons2 bit3  Triangle  (usage 0x05, hypothesis)
-  constexpr uint16_t kX       = 12;  // buttons2 bit4  Square    (usage 0x04, confirmed)
-  constexpr uint16_t kB       = 13;  // buttons2 bit5  Circle    (usage 0x02, derived)
+  // Face buttons (confirmed / derived from confirmed X=bit12)
   constexpr uint16_t kA       = 14;  // buttons2 bit6  Cross     (usage 0x01, derived)
-  // Shoulder/trigger and system buttons — positions still unverified, need testing
-  constexpr uint16_t kLB      = 0;   // buttons1 bit0  L1  (testing)
-  constexpr uint16_t kRB      = 1;   // buttons1 bit1  R1  (testing)
-  constexpr uint16_t kLT      = 2;   // buttons1 bit2  L2 digital  (testing)
-  constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (testing)
-  constexpr uint16_t kMenu    = 8;   // buttons2 bit0  Options/Menu
-  constexpr uint16_t kGuide   = 9;   // buttons2 bit1  PS/Guide
-  constexpr uint16_t kCapture = 10;  // buttons2 bit2  Touchpad/Capture
-  constexpr uint16_t kL3      = 8;   // buttons2 bit0  L3  (testing)
-  constexpr uint16_t kR3      = 7;   // buttons1 bit7  R3            (confirmed via R2 trigger test)
-  constexpr uint16_t kBack    = 2;   // buttons1 bit2  Create/Back
+  constexpr uint16_t kB       = 13;  // buttons2 bit5  Circle    (usage 0x02, derived)
+  constexpr uint16_t kX       = 12;  // buttons2 bit4  Square    (usage 0x04, confirmed)
+  constexpr uint16_t kY       = 11;  // buttons2 bit3  Triangle  (usage 0x05, derived)
+  // Stick clicks (confirmed)
+  constexpr uint16_t kL3      = 8;   // buttons2 bit0  L3  (confirmed)
+  constexpr uint16_t kR3      = 7;   // buttons1 bit7  R3  (confirmed)
+  // Bumpers (LB confirmed, RB hypothesis)
+  constexpr uint16_t kLB      = 10;  // buttons2 bit2  L1  (confirmed via touchpad test)
+  constexpr uint16_t kRB      = 9;   // buttons2 bit1  R1  (hypothesis: adjacent to LB)
+  // Triggers digital + system buttons — placeholders in bits 0-6, unverified
+  constexpr uint16_t kLT      = 0;   // buttons1 bit0  L2 digital  (unverified)
+  constexpr uint16_t kRT      = 1;   // buttons1 bit1  R2 digital  (unverified)
+  constexpr uint16_t kMenu    = 2;   // buttons1 bit2  Options/Menu  (unverified)
+  constexpr uint16_t kGuide   = 3;   // buttons1 bit3  PS/Guide  (unverified)
+  constexpr uint16_t kBack    = 4;   // buttons1 bit4  Create/Back  (unverified)
+  constexpr uint16_t kCapture = 5;   // buttons1 bit5  Touchpad/Capture  (unverified)
 }  // namespace gp
 
 struct AllowedDevice {
