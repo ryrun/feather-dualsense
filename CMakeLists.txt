@@ -47,6 +47,7 @@ target_link_options(feather_dualsense PRIVATE
 )
 
 target_compile_definitions(feather_dualsense PRIVATE
+  PICO_DEFAULT_UART=0
   PICO_DEFAULT_UART_TX_PIN=0
   PICO_DEFAULT_UART_RX_PIN=1
   CFG_TUH_ENABLED=1
