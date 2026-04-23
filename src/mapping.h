@@ -71,21 +71,22 @@ struct Action {
 // 0-7:  bit position in GamepadReport::buttons1
 // 8-14: bit position in GamepadReport::buttons2 (subtract 8 for actual bit)
 namespace gp {
-  constexpr uint16_t kY       = 0;   // buttons1 bit0  Triangle
-  constexpr uint16_t kX       = 1;   // buttons1 bit1  Square
-  constexpr uint16_t kB       = 2;   // buttons1 bit2  Circle
-  constexpr uint16_t kA       = 3;   // buttons1 bit3  Cross
+  // Face buttons — derived from confirmed X=bit12 (usage 0x04) + adjacent HID usages
+  constexpr uint16_t kY       = 11;  // buttons2 bit3  Triangle  (usage 0x05, hypothesis)
+  constexpr uint16_t kX       = 12;  // buttons2 bit4  Square    (usage 0x04, confirmed)
+  constexpr uint16_t kB       = 13;  // buttons2 bit5  Circle    (usage 0x02, derived)
+  constexpr uint16_t kA       = 14;  // buttons2 bit6  Cross     (usage 0x01, derived)
+  // Shoulder/trigger and system buttons — positions still unverified, need testing
   constexpr uint16_t kLB      = 4;   // buttons1 bit4  L1
   constexpr uint16_t kLT      = 5;   // buttons1 bit5  L2 digital
   constexpr uint16_t kRB      = 6;   // buttons1 bit6  R1
   constexpr uint16_t kRT      = 7;   // buttons1 bit7  R2 digital
   constexpr uint16_t kMenu    = 8;   // buttons2 bit0  Options/Menu
   constexpr uint16_t kGuide   = 9;   // buttons2 bit1  PS/Guide
-  // buttons2 bit2 = Assistant (no DualSense equivalent, always 0)
-  constexpr uint16_t kCapture = 11;  // buttons2 bit3  Touchpad/Capture
-  constexpr uint16_t kL3      = 12;  // buttons2 bit4  L3
-  constexpr uint16_t kR3      = 13;  // buttons2 bit5  R3
-  constexpr uint16_t kBack    = 14;  // buttons2 bit6  Create/Back
+  constexpr uint16_t kCapture = 10;  // buttons2 bit2  Touchpad/Capture
+  constexpr uint16_t kL3      = 0;   // buttons1 bit0  L3
+  constexpr uint16_t kR3      = 1;   // buttons1 bit1  R3
+  constexpr uint16_t kBack    = 2;   // buttons1 bit2  Create/Back
 }  // namespace gp
 
 struct AllowedDevice {
