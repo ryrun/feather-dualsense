@@ -596,8 +596,9 @@ void ProcessButtons(uint64_t next_buttons) {
 
 // Checks for the mode-switch combo (Touchpad click + Options held simultaneously).
 // Arms when both are pressed; calls ToggleAndReboot() (noreturn) when one is released.
+// Returns true while armed so callers can suppress normal button processing.
 static bool s_combo_armed = false;
-static void CheckModeCombo(uint64_t buttons) {
+static bool CheckModeCombo(uint64_t buttons) {
   constexpr uint64_t kOptions  = mapping::ButtonMask(mapping::Button::kOptions);
   constexpr uint64_t kTouchpad = mapping::ButtonMask(mapping::Button::kTouchpad);
   constexpr uint64_t kCombo    = kOptions | kTouchpad;
@@ -607,6 +608,7 @@ static void CheckModeCombo(uint64_t buttons) {
   } else if (s_combo_armed) {
     mode::ToggleAndReboot();
   }
+  return s_combo_armed;
 }
 
 }  // namespace
@@ -804,7 +806,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   DebugPrintReport(report, len);
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
-  CheckModeCombo(raw_buttons);
+  const bool combo_armed = CheckModeCombo(raw_buttons);
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
     device_out::SendGamepad(ParseForGamepad(report, len));
@@ -812,10 +814,12 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
     return;
   }
 
-  ProcessButtons(raw_buttons |
-                 ParseLeftStickButtons(report, len)  |
-                 ParseRightStickButtons(report, len));
-  ParseTouchpadClick(report, len);
+  if (!combo_armed) {
+    ProcessButtons(raw_buttons |
+                   ParseLeftStickButtons(report, len)  |
+                   ParseRightStickButtons(report, len));
+    ParseTouchpadClick(report, len);
+  }
   int8_t scroll = 0;
   if (ParseTouchScroll(report, len, &scroll)) {
     g_controller.mouse.x = 0;
