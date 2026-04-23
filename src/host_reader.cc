@@ -324,9 +324,20 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
   const int16_t gyro_for_x = gyro_raw_y;
   const int16_t gyro_for_y = gyro_raw_x;
 
-  // Fast initial calibration: average first kGyroBiasSamples reports.
+  // Initial calibration: collect kGyroBiasSamples consecutive still samples.
+  // Any sample where any axis exceeds the movement threshold resets the window,
+  // ensuring calibration is not polluted by movement during a mode switch.
   constexpr uint16_t kGyroBiasSamples = 250;
+  constexpr int16_t kCalibMovementThreshold = 50;
   if (g_controller.gyro_calib_count < kGyroBiasSamples) {
+    if (Abs32(gyro_for_x) > kCalibMovementThreshold ||
+        Abs32(gyro_for_y) > kCalibMovementThreshold ||
+        Abs32(gyro_raw_z) > kCalibMovementThreshold) {
+      g_controller.gyro_calib_count = 0;
+      g_controller.gyro_calib_sum_x = 0;
+      g_controller.gyro_calib_sum_y = 0;
+      return false;
+    }
     g_controller.gyro_calib_sum_x += gyro_for_x;
     g_controller.gyro_calib_sum_y += gyro_for_y;
     ++g_controller.gyro_calib_count;
