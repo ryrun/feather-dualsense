@@ -26,7 +26,9 @@ enum EndpointAddressKbm : uint8_t {
 
 constexpr uint16_t kUsbVid    = 0xCafe;
 constexpr uint16_t kUsbPidKbm = 0x4023;
-constexpr uint16_t kUsbPidGp  = 0x4024;
+// Google VID + Stadia PID: recognized natively by macOS, Chrome and SDL2.
+constexpr uint16_t kUsbVidGp  = 0x18D1;
+constexpr uint16_t kUsbPidGp  = 0x9400;
 constexpr uint16_t kUsbBcd    = 0x0100;
 
 uint8_t const kDescHidKeyboard[] = {
@@ -131,19 +133,15 @@ uint8_t const kDescHidGamepad[] = {
     0x09, 0x05,                         // Usage (Gamepad)
     0xA1, 0x01,                         // Collection (Application)
     0x85, device_out::kReportIdGamepad, // Report ID
-    // 14 buttons
+    // 16 buttons (no padding needed — 16 bits fill exactly 2 bytes)
     0x05, 0x09,                         // Usage Page (Button)
-    0x19, 0x01,                         // Usage Minimum (Button 1)
-    0x29, 0x0E,                         // Usage Maximum (Button 14)
+    0x19, 0x01,                         // Usage Minimum (1)
+    0x29, 0x10,                         // Usage Maximum (16)
     0x15, 0x00,                         // Logical Minimum (0)
     0x25, 0x01,                         // Logical Maximum (1)
     0x75, 0x01,                         // Report Size (1)
-    0x95, 0x0E,                         // Report Count (14)
+    0x95, 0x10,                         // Report Count (16)
     0x81, 0x02,                         // Input (Data, Variable, Absolute)
-    // 2 padding bits
-    0x75, 0x01,                         // Report Size (1)
-    0x95, 0x02,                         // Report Count (2)
-    0x81, 0x03,                         // Input (Constant)
     // Hat switch
     0x05, 0x01,                         // Usage Page (Generic Desktop)
     0x09, 0x39,                         // Usage (Hat Switch)
@@ -171,9 +169,9 @@ uint8_t const kDescHidGamepad[] = {
     0x75, 0x10,                         // Report Size (16)
     0x95, 0x04,                         // Report Count (4)
     0x81, 0x02,                         // Input (Data, Variable, Absolute)
-    // L2 (Z), R2 (Rz) analog triggers
-    0x09, 0x32,                         // Usage (Z)
-    0x09, 0x35,                         // Usage (Rz)
+    // R2 = Z (SDL2 axis 4 / righttrigger), L2 = Rz (SDL2 axis 5 / lefttrigger)
+    0x09, 0x32,                         // Usage (Z)   — R2, axis 4
+    0x09, 0x35,                         // Usage (Rz)  — L2, axis 5
     0x15, 0x00,                         // Logical Minimum (0)
     0x26, 0xFF, 0x00,                   // Logical Maximum (255)
     0x75, 0x08,                         // Report Size (8)
@@ -205,7 +203,7 @@ tusb_desc_device_t const kDescDeviceGamepad = {
     sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200,
     0x00, 0x00, 0x00,
     CFG_TUD_ENDPOINT0_SIZE,
-    kUsbVid, kUsbPidGp, kUsbBcd,
+    kUsbVidGp, kUsbPidGp, kUsbBcd,
     0x01, 0x02, 0x03, 0x01,
 };
 
@@ -217,8 +215,8 @@ char const* kStringDescriptorsKbm[] = {
 
 char const* kStringDescriptorsGamepad[] = {
     nullptr,
-    "feather-dualsense",
-    "DualSense Gamepad",
+    "Google LLC",
+    "Stadia Controller rev. A",
 };
 
 uint16_t g_string_desc[32];

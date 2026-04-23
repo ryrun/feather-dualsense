@@ -592,12 +592,28 @@ void ProcessButtons(uint64_t next_buttons) {
 
 }  // namespace
 
-// Builds a gamepad report from a raw DualSense input report.
-// Stadia-compatible button layout:
-//   bit 0=A(Cross), 1=B(Circle), 2=X(Square), 3=Y(Triangle),
-//   4=L1, 5=R1, 6=L2, 7=R2, 8=L3, 9=R3,
-//   10=Select(Create), 11=Start(Options), 12=Guide(PS), 13=Capture(Touchpad)
-// Right paddle overrides A (bit 0), left paddle overrides L3 (bit 8).
+// Builds a Stadia-compatible gamepad report from a raw DualSense input report.
+//
+// Stadia button layout (SDL2 DB: 18d19400,Stadia Controller rev. A):
+//   bit  0 = A        (Cross)      a:b0
+//   bit  1 = B        (Circle)     b:b1
+//   bit  2 = X        (Square)     x:b2
+//   bit  3 = Y        (Triangle)   y:b3
+//   bit  4 = unused   (Assistant on real Stadia)
+//   bit  5 = Guide    (PS)         guide:b5
+//   bit  6 = Menu     (Options)    start:b6
+//   bit  7 = L3                    leftstick:b7
+//   bit  8 = R3                    rightstick:b8
+//   bit  9 = L1                    leftshoulder:b9
+//   bit 10 = R1                    rightshoulder:b10
+//   bit 11 = Capture  (Create)     back:b11 / misc1:b11
+//   bits 12-15 = unused
+//
+// Triggers (analog axes only, no digital button bits):
+//   r2 = Z   → SDL2 axis 4 (righttrigger:a4)
+//   l2 = Rz  → SDL2 axis 5 (lefttrigger:a5)
+//
+// Edge paddles: right paddle → A (bit 0), left paddle → L3 (bit 7).
 static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
                                                  uint16_t len) {
   device_out::GamepadReport gp = {};
@@ -608,27 +624,25 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
     return gp;
   }
 
-  const uint8_t dpad_shapes      = report[button_base + 0];
-  const uint8_t shoulders        = report[button_base + 1];
-  const uint8_t system_buttons   = report[button_base + 2];
+  const uint8_t dpad_shapes    = report[button_base + 0];
+  const uint8_t shoulders      = report[button_base + 1];
+  const uint8_t system_buttons = report[button_base + 2];
 
   uint16_t b = 0;
   if (dpad_shapes  & 0x20) b |= (1u << 0);   // Cross     → A
   if (dpad_shapes  & 0x40) b |= (1u << 1);   // Circle    → B
   if (dpad_shapes  & 0x10) b |= (1u << 2);   // Square    → X
   if (dpad_shapes  & 0x80) b |= (1u << 3);   // Triangle  → Y
-  if (shoulders    & 0x01) b |= (1u << 4);   // L1
-  if (shoulders    & 0x02) b |= (1u << 5);   // R1
-  if (shoulders    & 0x04) b |= (1u << 6);   // L2 digital
-  if (shoulders    & 0x08) b |= (1u << 7);   // R2 digital
-  if (shoulders    & 0x40) b |= (1u << 8);   // L3
-  if (shoulders    & 0x80) b |= (1u << 9);   // R3
-  if (shoulders    & 0x10) b |= (1u << 10);  // Create  → Select
-  if (shoulders    & 0x20) b |= (1u << 11);  // Options → Start
-  if (system_buttons & 0x01) b |= (1u << 12); // PS       → Guide
-  if (system_buttons & 0x02) b |= (1u << 13); // Touchpad → Capture
+  // bit 4 unused (Stadia Assistant)
+  if (system_buttons & 0x01) b |= (1u << 5);  // PS        → Guide
+  if (shoulders    & 0x20) b |= (1u << 6);   // Options   → Menu
+  if (shoulders    & 0x40) b |= (1u << 7);   // L3
+  if (shoulders    & 0x80) b |= (1u << 8);   // R3
+  if (shoulders    & 0x01) b |= (1u << 9);   // L1
+  if (shoulders    & 0x02) b |= (1u << 10);  // R1
+  if (shoulders    & 0x10) b |= (1u << 11);  // Create    → Capture
   if (system_buttons & 0x80) b |= (1u << 0);  // Right paddle → A
-  if (system_buttons & 0x40) b |= (1u << 8);  // Left paddle  → L3
+  if (system_buttons & 0x40) b |= (1u << 7);  // Left paddle  → L3
   gp.buttons = b;
 
   const uint8_t hat = dpad_shapes & 0x0F;
@@ -642,8 +656,8 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
     gp.left_y  = scale(report[report_base + 1]);
     gp.right_x = scale(report[report_base + 2]);
     gp.right_y = scale(report[report_base + 3]);
-    gp.l2 = report[report_base + 4];
-    gp.r2 = report[report_base + 5];
+    gp.r2 = report[report_base + 5];  // R2 = Z   = SDL2 axis 4
+    gp.l2 = report[report_base + 4];  // L2 = Rz  = SDL2 axis 5
   }
 
   return gp;
