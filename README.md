@@ -51,6 +51,8 @@ Expected output: `build/feather_dualsense.uf2`
 
 On macOS, the device should enumerate as a USB HID composite device with one keyboard interface and one mouse interface.
 
+The mouse HID report uses 16-bit relative axes for X/Y/Wheel/Pan.
+
 
 ## Host init notes (Feather USB host)
 

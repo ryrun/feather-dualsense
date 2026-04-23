@@ -11,9 +11,48 @@ uint8_t const k_hid_report_keyboard[] = {
     TUD_HID_REPORT_DESC_KEYBOARD(),
 };
 
+// Mouse report with 16-bit relative X/Y/Wheel/Pan.
 uint8_t const k_hid_report_mouse[] = {
-    TUD_HID_REPORT_DESC_MOUSE(),
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x02,        // Usage (Mouse)
+    0xA1, 0x01,        // Collection (Application)
+    0x09, 0x01,        //   Usage (Pointer)
+    0xA1, 0x00,        //   Collection (Physical)
+    0x05, 0x09,        //     Usage Page (Button)
+    0x19, 0x01,        //     Usage Minimum (1)
+    0x29, 0x03,        //     Usage Maximum (3)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x95, 0x03,        //     Report Count (3)
+    0x75, 0x01,        //     Report Size (1)
+    0x81, 0x02,        //     Input (Data,Var,Abs)
+    0x95, 0x01,        //     Report Count (1)
+    0x75, 0x05,        //     Report Size (5)
+    0x81, 0x03,        //     Input (Const,Var,Abs)
+    0x05, 0x01,        //     Usage Page (Generic Desktop)
+    0x09, 0x30,        //     Usage (X)
+    0x09, 0x31,        //     Usage (Y)
+    0x09, 0x38,        //     Usage (Wheel)
+    0x05, 0x0C,        //     Usage Page (Consumer)
+    0x0A, 0x38, 0x02,  //     Usage (AC Pan)
+    0x16, 0x01, 0x80,  //     Logical Minimum (-32767)
+    0x26, 0xFF, 0x7F,  //     Logical Maximum (32767)
+    0x75, 0x10,        //     Report Size (16)
+    0x95, 0x04,        //     Report Count (4)
+    0x81, 0x06,        //     Input (Data,Var,Rel)
+    0xC0,              //   End Collection
+    0xC0               // End Collection
 };
+
+typedef struct TU_ATTR_PACKED {
+  uint8_t buttons;
+  int16_t x;
+  int16_t y;
+  int16_t wheel;
+  int16_t pan;
+} hid_mouse_report_16_t;
+
+static_assert(sizeof(hid_mouse_report_16_t) == 9, "Unexpected 16-bit mouse report size");
 
 const char* k_string_desc[] = {
     (const char[]){0x09, 0x04},
@@ -43,7 +82,10 @@ void device_out_send_if_ready(const output_state* state) {
   }
 
   tud_hid_n_keyboard_report(0, 0, state->modifiers, state->keycodes);
-  tud_hid_n_mouse_report(1, 0, state->mouse_buttons, 0, 0, 0, 0);
+
+  hid_mouse_report_16_t mouse_report{};
+  mouse_report.buttons = state->mouse_buttons;
+  tud_hid_n_report(1, 0, &mouse_report, sizeof(mouse_report));
 
   g_last_sent = *state;
   g_has_last = true;
