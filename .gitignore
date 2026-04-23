@@ -1,0 +1,11 @@
+/build/
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*.uf2
+*.elf
+*.bin
+*.map
+*.o
+.DS_Store
