@@ -13,14 +13,15 @@ Lean RP2040 firmware for **Adafruit Feather 2024 USB HOST A** that accepts only 
 
 ## Feather RP2040 USB Host specifics
 
-This project targets **Adafruit Feather RP2040 USB Host (Product 5723)** with PIO USB host wiring:
+This project targets **Adafruit Feather RP2040 USB Host (Product 5723)** using TinyUSB + Pico PIO-USB host mode.
 
-- D+ = GPIO16
-- D- = GPIO17
-- VBUS enable = GPIO18
-- default CPU clock = 120 MHz (`HOST_CPU_KHZ=120000`)
+Runtime uses the same key pattern as hid-remapper:
+- `tuh_configure(... TUH_CFGID_RPI_PIO_USB_CONFIGURATION ...)`
+- a repeating 1 ms timer calling `pio_usb_host_frame()`
+- continuous `tuh_task()` pumping
 
-Host task runs continuously on core1; device task runs on core0.
+PIO D+ pin is taken from `PICO_DEFAULT_PIO_USB_DP_PIN` in the active board definition.
+Optional VBUS enable is only toggled when `PICO_DEFAULT_PIO_USB_VBUSEN_PIN` is defined by board config.
 
 ## Supported controller whitelist (runtime)
 

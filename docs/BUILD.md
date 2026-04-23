@@ -115,14 +115,9 @@ The workflow builds a standalone host `picotool` with USB support and fails if i
 It also verifies firmware artifacts exist (`build/feather_dualsense.elf` and `.uf2`) and prints `arm-none-eabi-size`.
 
 
-### Board-specific host timing/wiring options
+### Host verification checklist
 
-```bash
-PICO_BOARD=feather_host cmake .. \
-  -DHOST_USB_DP_PIN=16 \
-  -DHOST_USB_DM_PIN=17 \
-  -DHOST_VBUS_EN_PIN=18 \
-  -DHOST_CPU_KHZ=120000
-```
-
-For timing experiments you can try `-DHOST_CPU_KHZ=240000`.
+- Confirm board definition exports `PICO_DEFAULT_PIO_USB_DP_PIN`.
+- Confirm whether your board exports `PICO_DEFAULT_PIO_USB_VBUSEN_PIN` (or verify VBUS behavior from schematic/docs).
+- In debug builds, verify `tuh_hid_mount_cb` / receive callbacks fire for supported controllers.
+- Ensure `tuh_task()` is called continuously (this firmware calls it in the main loop).

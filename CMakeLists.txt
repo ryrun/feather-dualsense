@@ -13,10 +13,6 @@ if (NOT CMAKE_BUILD_TYPE)
 endif ()
 
 option(BUILD_DEBUG "Enable debug UART logging" OFF)
-set(HOST_USB_DP_PIN "16" CACHE STRING "PIO USB host D+ pin")
-set(HOST_USB_DM_PIN "17" CACHE STRING "PIO USB host D- pin")
-set(HOST_VBUS_EN_PIN "18" CACHE STRING "GPIO pin to enable host VBUS power")
-set(HOST_CPU_KHZ "120000" CACHE STRING "System clock in kHz for stable PIO USB host timing")
 
 pico_sdk_init()
 
@@ -63,10 +59,6 @@ target_compile_definitions(feather_dualsense PRIVATE
   PICO_DEFAULT_UART_RX_PIN=1
   CFG_TUH_ENABLED=1
   CFG_TUD_ENABLED=1
-  HOST_USB_DP_PIN=${HOST_USB_DP_PIN}
-  HOST_USB_DM_PIN=${HOST_USB_DM_PIN}
-  HOST_VBUS_EN_PIN=${HOST_VBUS_EN_PIN}
-  HOST_CPU_KHZ=${HOST_CPU_KHZ}
   HAVE_PIO_USB_HEADER=${HAVE_PIO_USB_HEADER}
 )
 
@@ -75,6 +67,9 @@ target_link_libraries(feather_dualsense PRIVATE
   tinyusb_device
   tinyusb_host
   tinyusb_board
+  tinyusb_pico_pio_usb
+  hardware_pio
+  hardware_dma
 )
 
 pico_enable_stdio_uart(feather_dualsense 1)
