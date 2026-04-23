@@ -16,12 +16,26 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord cmake build-essential libusb-1.0-0-dev libudev-dev pkg-config
-
+          sudo apt install -y --no-install-recommends \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib \
+            srecord cmake build-essential libusb-1.0-0-dev libudev-dev pkg-config git
 
       - name: Check libusb discovery
         run: |
           pkg-config --modversion libusb-1.0
+
+      - name: Build standalone picotool with USB support
+        run: |
+          git clone --depth 1 https://github.com/raspberrypi/picotool.git /tmp/picotool
+          cmake -S /tmp/picotool -B /tmp/picotool/build -DCMAKE_BUILD_TYPE=Release -DPICOTOOL_NO_LIBUSB=0
+          cmake --build /tmp/picotool/build -j"$(nproc)"
+
+      - name: Verify standalone picotool USB support
+        run: |
+          if /tmp/picotool/build/picotool 2>&1 | grep -q "compiled without USB support"; then
+            echo "Standalone picotool was built without USB support"
+            exit 1
+          fi
 
       - name: Ensure pico-sdk is available
         run: |
@@ -35,17 +49,17 @@ jobs:
           cd build
           PICO_BOARD=feather_host cmake .. -DCMAKE_BUILD_TYPE=Release -DPICOTOOL_NO_LIBUSB=0
 
-      - name: Build
+      - name: Build firmware
         run: |
           cd build
           make -j"$(nproc)"
 
-      - name: Verify picotool USB support
+      - name: Firmware sanity checks
         run: |
-          if ./build/_deps/picotool-build/picotool 2>&1 | grep -q "compiled without USB support"; then
-            echo "picotool was built without USB support"
-            exit 1
-          fi
+          test -f build/feather_dualsense.uf2
+          test -f build/feather_dualsense.elf
+          arm-none-eabi-size build/feather_dualsense.elf
+          strings build/feather_dualsense.elf | grep -q "DualSense to Keyboard+Mouse"
 
       - name: Upload UF2 artifact
         uses: actions/upload-artifact@v4

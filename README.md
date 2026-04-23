@@ -98,3 +98,6 @@ Picotool may print "compiled without USB support" if libusb development headers 
 
 
 CI configures CMake with `-DPICOTOOL_NO_LIBUSB=0` and fails the job if picotool reports it was compiled without USB support.
+
+
+CI now performs multiple USB-related checks: it builds a standalone host picotool with `-DPICOTOOL_NO_LIBUSB=0`, fails if that binary reports no USB support, and also validates firmware artifact generation (`.elf` + `.uf2`).

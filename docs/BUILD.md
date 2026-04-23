@@ -105,5 +105,11 @@ Default is `-1` (no explicit VBUS GPIO toggle).
 After build, verify picotool was not built in no-USB mode:
 
 ```bash
-./build/_deps/picotool-build/picotool 2>&1 | grep -q "compiled without USB support" && echo "NO USB" || echo "USB OK"
+/tmp/picotool/build/picotool 2>&1 | grep -q "compiled without USB support" && echo "NO USB" || echo "USB OK"
 ```
+
+
+### CI verification notes
+
+The workflow builds a standalone host `picotool` with USB support and fails if it prints `compiled without USB support`.
+It also verifies firmware artifacts exist (`build/feather_dualsense.elf` and `.uf2`) and prints `arm-none-eabi-size`.
