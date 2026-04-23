@@ -649,13 +649,10 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   gp.hat = (hat > 7) ? 0x0F : hat;
 
   if (len >= static_cast<uint16_t>(report_base + 6)) {
-    auto scale = [](uint8_t raw) -> int16_t {
-      return static_cast<int16_t>((static_cast<int32_t>(raw) - 128) * 256);
-    };
-    gp.left_x  = scale(report[report_base + 0]);
-    gp.left_y  = scale(report[report_base + 1]);
-    gp.right_x = scale(report[report_base + 2]);
-    gp.right_y = scale(report[report_base + 3]);
+    gp.left_x  = report[report_base + 0];
+    gp.left_y  = report[report_base + 1];
+    gp.right_x = report[report_base + 2];
+    gp.right_y = report[report_base + 3];
     gp.r2 = report[report_base + 5];  // R2 = Z   = SDL2 axis 4
     gp.l2 = report[report_base + 4];  // L2 = Rz  = SDL2 axis 5
   }
