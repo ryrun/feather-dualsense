@@ -40,7 +40,7 @@ See [docs/BUILD.md](docs/BUILD.md).
 Quick local build:
 
 ```bash
-git submodule update --init --recursive
+git submodule update --init --recursive  # recommended
 mkdir -p build && cd build
 PICO_BOARD=feather_host cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j"$(nproc)"
@@ -72,3 +72,6 @@ lsusb | grep -i sony
 ## Acknowledgements
 
 Implementation patterns were inspired by TinyUSB host/device HID examples and jfedor2/hid-remapper structure ideas, but this codebase is a minimal re-implementation tailored to this project and does not copy large external files verbatim.
+
+
+If `./pico-sdk` is absent, CMake can fetch pico-sdk automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`).

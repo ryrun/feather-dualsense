@@ -8,11 +8,15 @@ sudo apt install -y --no-install-recommends \
   gcc-arm-none-eabi libnewlib-arm-none-eabi srecord cmake build-essential
 ```
 
-Also fetch pico-sdk submodule:
+Fetch pico-sdk in one of two ways:
+
+1) Recommended: submodule
 
 ```bash
 git submodule update --init --recursive
 ```
+
+2) Or let CMake fetch automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`) if `./pico-sdk` is not present.
 
 ## Configure and build
 
