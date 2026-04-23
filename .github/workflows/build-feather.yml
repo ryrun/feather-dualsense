@@ -1,0 +1,58 @@
+name: Build Feather UF2
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            libstdc++-arm-none-eabi-newlib \
+            srecord \
+            cmake \
+            make \
+            build-essential
+
+      - name: Ensure Pico SDK
+        run: |
+          if [ ! -d pico-sdk ]; then
+            git clone --depth 1 --branch 2.1.1 https://github.com/raspberrypi/pico-sdk.git pico-sdk
+          fi
+          git -C pico-sdk submodule update --init --recursive
+          if [ ! -d pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB ]; then
+            mkdir -p pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi
+            git clone --depth 1 https://github.com/sekigon-gonnoc/Pico-PIO-USB.git \
+              pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB
+          fi
+
+      - name: Configure
+        run: |
+          mkdir build
+          cd build
+          PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release ..
+
+      - name: Build
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Upload UF2
+        uses: actions/upload-artifact@v4
+        with:
+          name: feather_remapper.uf2
+          path: build/*.uf2
+          if-no-files-found: error

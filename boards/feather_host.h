@@ -1,0 +1,21 @@
+// Board definition for Adafruit Feather RP2040 USB Host, Type A, product 5723.
+// The Type-A host connector is wired to RP2040 PIO USB:
+// D+ on GPIO 16, D- on GPIO 17, VBUS enable on GPIO 18.
+
+#pragma once
+
+#define ADAFRUIT_FEATHER_RP2040_USB_HOST
+
+#define PICO_DEFAULT_LED_PIN 13
+#define PICO_DEFAULT_UART 0
+#define PICO_DEFAULT_UART_TX_PIN 0
+#define PICO_DEFAULT_UART_RX_PIN 1
+
+#define PICO_FLASH_SIZE_BYTES (8 * 1024 * 1024)
+#define PICO_XOSC_STARTUP_DELAY_MULTIPLIER 64
+
+#define PICO_DEFAULT_PIO_USB_DP_PIN 16
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN 18
+#define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
+
+#define PIO_USB_DP_PIN_DEFAULT PICO_DEFAULT_PIO_USB_DP_PIN

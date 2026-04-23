@@ -1,0 +1,13 @@
+build/
+cmake-build-*/
+pico-sdk/
+.toolchains/
+*.uf2
+*.elf
+*.elf.map
+*.bin
+*.hex
+*.dis
+*.o
+*.a
+.DS_Store
