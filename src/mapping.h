@@ -81,7 +81,7 @@ namespace gp {
   constexpr uint16_t kR3      = 7;   // buttons1 bit7  R3  (confirmed)
   // Bumpers
   constexpr uint16_t kLB      = 10;  // buttons2 bit2  L1  (confirmed)
-  constexpr uint16_t kRB      = 6;   // buttons1 bit6  R1  (hypothesis)
+  constexpr uint16_t kRB      = 9;   // buttons2 bit1  R1  (confirmed)
   // Triggers digital
   constexpr uint16_t kLT      = 5;   // buttons1 bit5  L2 digital  (hypothesis)
   constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (confirmed)
