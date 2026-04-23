@@ -97,7 +97,7 @@ If your Feather variant gates host VBUS through an enable GPIO, configure it at 
 PICO_BOARD=feather_host cmake .. -DHOST_VBUS_EN_PIN=<gpio_number>
 ```
 
-Default is `-1` (no explicit VBUS GPIO toggle).
+Default is `18` for Feather RP2040 USB Host.
 
 
 ### Optional picotool USB support check
@@ -113,3 +113,16 @@ After build, verify picotool was not built in no-USB mode:
 
 The workflow builds a standalone host `picotool` with USB support and fails if it prints `compiled without USB support`.
 It also verifies firmware artifacts exist (`build/feather_dualsense.elf` and `.uf2`) and prints `arm-none-eabi-size`.
+
+
+### Board-specific host timing/wiring options
+
+```bash
+PICO_BOARD=feather_host cmake .. \
+  -DHOST_USB_DP_PIN=16 \
+  -DHOST_USB_DM_PIN=17 \
+  -DHOST_VBUS_EN_PIN=18 \
+  -DHOST_CPU_KHZ=120000
+```
+
+For timing experiments you can try `-DHOST_CPU_KHZ=240000`.

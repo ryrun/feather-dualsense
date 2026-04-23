@@ -10,6 +10,18 @@ Lean RP2040 firmware for **Adafruit Feather 2024 USB HOST A** that accepts only 
 - Low-latency hot path with static memory and bitmask parsing.
 - CI-generated `.uf2` artifact for flashing.
 
+
+## Feather RP2040 USB Host specifics
+
+This project targets **Adafruit Feather RP2040 USB Host (Product 5723)** with PIO USB host wiring:
+
+- D+ = GPIO16
+- D- = GPIO17
+- VBUS enable = GPIO18
+- default CPU clock = 120 MHz (`HOST_CPU_KHZ=120000`)
+
+Host task runs continuously on core1; device task runs on core0.
+
 ## Supported controller whitelist (runtime)
 
 Only these VID/PID pairs are accepted:

@@ -2,7 +2,9 @@
 
 #include "bsp/board_api.h"
 #include "device_out.h"
+#include "hardware/clocks.h"
 #include "host_reader.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "tusb.h"
 
@@ -10,8 +12,20 @@
 #include "pio_usb.h"
 #endif
 
+#ifndef HOST_USB_DP_PIN
+#define HOST_USB_DP_PIN 16
+#endif
+
+#ifndef HOST_USB_DM_PIN
+#define HOST_USB_DM_PIN 17
+#endif
+
 #ifndef HOST_VBUS_EN_PIN
-#define HOST_VBUS_EN_PIN (-1)
+#define HOST_VBUS_EN_PIN 18
+#endif
+
+#ifndef HOST_CPU_KHZ
+#define HOST_CPU_KHZ 120000
 #endif
 
 output_state g_output_state{};
@@ -27,21 +41,29 @@ bool host_sof_timer_cb(repeating_timer_t*) {
 #endif
 
 void extra_init() {
-#if HOST_VBUS_EN_PIN >= 0
   gpio_init(HOST_VBUS_EN_PIN);
   gpio_set_dir(HOST_VBUS_EN_PIN, GPIO_OUT);
   gpio_put(HOST_VBUS_EN_PIN, 1);
-#endif
 
 #if defined(HAVE_PIO_USB_HEADER) && HAVE_PIO_USB_HEADER && CFG_TUH_RPI_PIO_USB
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+  pio_cfg.pin_dp = HOST_USB_DP_PIN;
+  (void)HOST_USB_DM_PIN;
+
   tuh_configure(1, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
   add_repeating_timer_us(-1000, host_sof_timer_cb, nullptr, &g_host_sof_timer);
 #endif
 }
+
+void core1_host_task() {
+  while (true) {
+    host_reader_task();
+  }
+}
 }  // namespace
 
 int main() {
+  set_sys_clock_khz(HOST_CPU_KHZ, true);
   board_init();
   extra_init();
 
@@ -60,9 +82,10 @@ int main() {
   host_reader_init();
   memset(&g_output_state, 0, sizeof(g_output_state));
 
+  multicore_launch_core1(core1_host_task);
+
   while (true) {
     tud_task();
-    host_reader_task();
     device_out_send_if_ready(&g_output_state);
   }
 

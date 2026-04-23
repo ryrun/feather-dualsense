@@ -13,7 +13,10 @@ if (NOT CMAKE_BUILD_TYPE)
 endif ()
 
 option(BUILD_DEBUG "Enable debug UART logging" OFF)
-set(HOST_VBUS_EN_PIN "-1" CACHE STRING "Optional GPIO pin to enable host VBUS power; -1 disables")
+set(HOST_USB_DP_PIN "16" CACHE STRING "PIO USB host D+ pin")
+set(HOST_USB_DM_PIN "17" CACHE STRING "PIO USB host D- pin")
+set(HOST_VBUS_EN_PIN "18" CACHE STRING "GPIO pin to enable host VBUS power")
+set(HOST_CPU_KHZ "120000" CACHE STRING "System clock in kHz for stable PIO USB host timing")
 
 pico_sdk_init()
 
@@ -33,7 +36,7 @@ if (EXISTS "${PIO_USB_HEADER_DIR}/pio_usb.h")
   set(HAVE_PIO_USB_HEADER 1)
   target_include_directories(feather_dualsense PRIVATE "${PIO_USB_HEADER_DIR}")
 else ()
-  set(HAVE_PIO_USB_HEADER 0)
+  message(FATAL_ERROR "Pico-PIO-USB header not found. USB host on Feather RP2040 USB Host requires Pico-PIO-USB in pico-sdk.")
 endif ()
 
 target_include_directories(feather_dualsense PRIVATE
@@ -60,7 +63,10 @@ target_compile_definitions(feather_dualsense PRIVATE
   PICO_DEFAULT_UART_RX_PIN=1
   CFG_TUH_ENABLED=1
   CFG_TUD_ENABLED=1
+  HOST_USB_DP_PIN=${HOST_USB_DP_PIN}
+  HOST_USB_DM_PIN=${HOST_USB_DM_PIN}
   HOST_VBUS_EN_PIN=${HOST_VBUS_EN_PIN}
+  HOST_CPU_KHZ=${HOST_CPU_KHZ}
   HAVE_PIO_USB_HEADER=${HAVE_PIO_USB_HEADER}
 )
 
