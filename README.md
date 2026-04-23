@@ -42,7 +42,7 @@ Quick local build:
 ```bash
 git submodule update --init --recursive  # recommended
 mkdir -p build && cd build
-PICO_BOARD=feather_host cmake .. -DCMAKE_BUILD_TYPE=Release
+PICO_BOARD=feather_host cmake .. -DCMAKE_BUILD_TYPE=Release -DPICOTOOL_NO_LIBUSB=0
 make -j"$(nproc)"
 ```
 
@@ -93,3 +93,6 @@ If `./pico-sdk` is absent, CMake can clone pico-sdk automatically (default `PICO
 This project is also a vibecoding experiment built with ChatGPT Codex.
 
 Picotool may print "compiled without USB support" if libusb development headers are missing; this does not block UF2 generation, but installing `libusb-1.0-0-dev` enables the USB-capable picotool build.
+
+
+CI configures CMake with `-DPICOTOOL_NO_LIBUSB=0` and fails the job if picotool reports it was compiled without USB support.
