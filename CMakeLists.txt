@@ -27,12 +27,25 @@ add_executable(feather_dualsense
 )
 
 
-set(PIO_USB_HEADER_DIR "${PICO_SDK_PATH}/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB/src")
-if (EXISTS "${PIO_USB_HEADER_DIR}/pio_usb.h")
+set(PIO_USB_SEARCH_PATHS
+  "${PICO_SDK_PATH}/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB/src"
+  "${PICO_SDK_PATH}/lib/tinyusb/lib/Pico-PIO-USB/src"
+  "${PICO_SDK_PATH}/lib/tinyusb/lib/pico_pio_usb/src"
+  "${PICO_SDK_PATH}/lib/tinyusb/lib/pico-pio-usb/src"
+)
+
+find_path(PIO_USB_HEADER_DIR pio_usb.h PATHS ${PIO_USB_SEARCH_PATHS} NO_DEFAULT_PATH)
+if (PIO_USB_HEADER_DIR)
   set(HAVE_PIO_USB_HEADER 1)
+  message(STATUS "Found pio_usb.h in ${PIO_USB_HEADER_DIR}")
   target_include_directories(feather_dualsense PRIVATE "${PIO_USB_HEADER_DIR}")
 else ()
-  message(FATAL_ERROR "Pico-PIO-USB header not found. USB host on Feather RP2040 USB Host requires Pico-PIO-USB in pico-sdk.")
+  message(FATAL_ERROR
+    "Pico-PIO-USB header not found. Checked paths:
+"
+    "  ${PIO_USB_SEARCH_PATHS}
+"
+    "USB host on Feather RP2040 USB Host requires Pico-PIO-USB in pico-sdk.")
 endif ()
 
 target_include_directories(feather_dualsense PRIVATE
@@ -61,6 +74,11 @@ target_compile_definitions(feather_dualsense PRIVATE
   CFG_TUD_ENABLED=1
   HAVE_PIO_USB_HEADER=${HAVE_PIO_USB_HEADER}
 )
+
+
+if (NOT TARGET tinyusb_pico_pio_usb)
+  message(FATAL_ERROR "tinyusb_pico_pio_usb target not available in this pico-sdk. Use a pico-sdk that includes Pico-PIO-USB host support.")
+endif ()
 
 target_link_libraries(feather_dualsense PRIVATE
   pico_stdlib
