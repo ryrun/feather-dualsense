@@ -7,15 +7,12 @@
 #include "tusb.h"
 
 namespace {
-constexpr uint8_t REPORT_ID_KEYBOARD = 1;
-constexpr uint8_t REPORT_ID_MOUSE = 2;
-
 uint8_t const k_hid_report_keyboard[] = {
-    TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD)),
+    TUD_HID_REPORT_DESC_KEYBOARD(),
 };
 
 uint8_t const k_hid_report_mouse[] = {
-    TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(REPORT_ID_MOUSE)),
+    TUD_HID_REPORT_DESC_MOUSE(),
 };
 
 const char* k_string_desc[] = {
@@ -45,8 +42,8 @@ void device_out_send_if_ready(const output_state* state) {
     return;
   }
 
-  tud_hid_n_keyboard_report(0, REPORT_ID_KEYBOARD, state->modifiers, state->keycodes);
-  tud_hid_n_mouse_report(1, REPORT_ID_MOUSE, state->mouse_buttons, 0, 0, 0, 0);
+  tud_hid_n_keyboard_report(0, 0, state->modifiers, state->keycodes);
+  tud_hid_n_mouse_report(1, 0, state->mouse_buttons, 0, 0, 0, 0);
 
   g_last_sent = *state;
   g_has_last = true;
@@ -65,9 +62,10 @@ extern "C" uint16_t tud_hid_get_report_cb(uint8_t, uint8_t, hid_report_type_t, u
 extern "C" void tud_hid_set_report_cb(uint8_t, uint8_t, hid_report_type_t, uint8_t const*, uint16_t) {}
 
 extern "C" uint8_t const* tud_descriptor_device_cb(void) {
-  static tusb_desc_device_t const desc = {sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200, 0, 0, 0,
-                                          CFG_TUD_ENDPOINT0_SIZE,    0xCAFE,           0x4010, 0x0100,
-                                          0x01,                      0x02,             0x03,   0x01};
+  static tusb_desc_device_t const desc = {sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200,
+                                          TUSB_CLASS_MISC, MISC_SUBCLASS_COMMON, MISC_PROTOCOL_IAD,
+                                          CFG_TUD_ENDPOINT0_SIZE, 0xCAFE, 0x4010, 0x0100,
+                                          0x01, 0x02, 0x03, 0x01};
   return reinterpret_cast<uint8_t const*>(&desc);
 }
 

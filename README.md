@@ -48,6 +48,9 @@ make -j"$(nproc)"
 
 Expected output: `build/feather_dualsense.uf2`
 
+
+On macOS, the device should enumerate as a USB HID composite device with one keyboard interface and one mouse interface.
+
 ## Flash
 
 1. Hold **BOOTSEL** on Feather and connect USB.
