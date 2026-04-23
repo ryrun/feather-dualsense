@@ -83,13 +83,13 @@ namespace gp {
   constexpr uint16_t kLB      = 10;  // buttons2 bit2  L1  (confirmed)
   constexpr uint16_t kRB      = 9;   // buttons2 bit1  R1  (confirmed)
   // Triggers digital
-  constexpr uint16_t kLT      = 2;   // buttons1 bit2  L2 digital  (unverified)
+  constexpr uint16_t kLT      = 2;   // buttons1 bit2  L2 digital  (confirmed)
   constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (confirmed)
   // System buttons
   constexpr uint16_t kAssistant = 1;   // buttons1 bit1  Assistant  (confirmed)
   constexpr uint16_t kOptions = 5;   // buttons1 bit5  3-lines/Options/Menu  (confirmed)
   constexpr uint16_t kGuide   = 4;   // buttons1 bit4  Stadia/Guide  (confirmed)
-  constexpr uint16_t kBack    = 6;   // buttons1 bit6  Create/Back  (unverified)
+  constexpr uint16_t kBack    = 6;   // buttons1 bit6  Create/Back  (confirmed)
   constexpr uint16_t kCapture = 0;   // buttons1 bit0  Capture/Screenshot  (confirmed)
 }  // namespace gp
 
