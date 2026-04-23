@@ -5,7 +5,7 @@
 ```bash
 sudo apt update
 sudo apt install -y --no-install-recommends \
-  gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord cmake build-essential libusb-1.0-0-dev
+  gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord cmake build-essential libusb-1.0-0-dev libudev-dev pkg-config
 ```
 
 Fetch pico-sdk in one of two ways:

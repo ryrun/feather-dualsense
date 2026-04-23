@@ -16,8 +16,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord cmake build-essential libusb-1.0-0-dev
+          sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord cmake build-essential libusb-1.0-0-dev libudev-dev pkg-config
 
+
+      - name: Check libusb discovery
+        run: |
+          pkg-config --modversion libusb-1.0
 
       - name: Ensure pico-sdk is available
         run: |
