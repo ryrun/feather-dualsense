@@ -30,9 +30,6 @@ struct ActiveController {
   int32_t gyro_mouse_y_remainder_q16;
   // Gyro bias in Q8 (fractional precision for slow EMA updates).
   // Updated only when not touching and all 3 axes are still.
-  int32_t gyro_calib_sum_x;
-  int32_t gyro_calib_sum_y;
-  uint16_t gyro_calib_count;
   int32_t gyro_bias_x_q8;
   int32_t gyro_bias_y_q8;
   bool touch0_active;
@@ -73,9 +70,6 @@ void ClearHidState() {
   g_controller.instance = 0;
   g_controller.actions = nullptr;
   g_controller.buttons = 0;
-  g_controller.gyro_calib_sum_x = 0;
-  g_controller.gyro_calib_sum_y = 0;
-  g_controller.gyro_calib_count = 0;
   g_controller.gyro_bias_x_q8 = 0;
   g_controller.gyro_bias_y_q8 = 0;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
@@ -323,32 +317,6 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
   // Yaw → mouse X, pitch → mouse Y.
   const int16_t gyro_for_x = gyro_raw_y;
   const int16_t gyro_for_y = gyro_raw_x;
-
-  // Initial calibration: collect kGyroBiasSamples consecutive still samples.
-  // Any sample where any axis exceeds the movement threshold resets the window,
-  // ensuring calibration is not polluted by movement during a mode switch.
-  constexpr uint16_t kGyroBiasSamples = 250;
-  constexpr int16_t kCalibMovementThreshold = 50;
-  if (g_controller.gyro_calib_count < kGyroBiasSamples) {
-    if (Abs32(gyro_for_x) > kCalibMovementThreshold ||
-        Abs32(gyro_for_y) > kCalibMovementThreshold ||
-        Abs32(gyro_raw_z) > kCalibMovementThreshold) {
-      g_controller.gyro_calib_count = 0;
-      g_controller.gyro_calib_sum_x = 0;
-      g_controller.gyro_calib_sum_y = 0;
-      return false;
-    }
-    g_controller.gyro_calib_sum_x += gyro_for_x;
-    g_controller.gyro_calib_sum_y += gyro_for_y;
-    ++g_controller.gyro_calib_count;
-    if (g_controller.gyro_calib_count == kGyroBiasSamples) {
-      g_controller.gyro_bias_x_q8 =
-          (g_controller.gyro_calib_sum_x << 8) / kGyroBiasSamples;
-      g_controller.gyro_bias_y_q8 =
-          (g_controller.gyro_calib_sum_y << 8) / kGyroBiasSamples;
-    }
-    return false;
-  }
 
   const int16_t bias_x = static_cast<int16_t>(g_controller.gyro_bias_x_q8 >> 8);
   const int16_t bias_y = static_cast<int16_t>(g_controller.gyro_bias_y_q8 >> 8);
