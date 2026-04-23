@@ -79,3 +79,5 @@ If `./pico-sdk` is absent, CMake can clone pico-sdk automatically (default `PICO
 ## Note
 
 This project is also a vibecoding experiment built with ChatGPT Codex.
+
+Picotool may print "compiled without USB support" if libusb development headers are missing; this does not block UF2 generation, but installing `libusb-1.0-0-dev` enables the USB-capable picotool build.

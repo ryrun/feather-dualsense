@@ -38,12 +38,10 @@ target_compile_options(feather_dualsense PRIVATE
   $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
   $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
   $<$<CONFIG:Release>:-O3>
-  $<$<CONFIG:Release>:-flto>
 )
 
 target_link_options(feather_dualsense PRIVATE
   -Wl,--gc-sections
-  $<$<CONFIG:Release>:-flto>
 )
 
 target_compile_definitions(feather_dualsense PRIVATE
@@ -61,7 +59,7 @@ target_link_libraries(feather_dualsense PRIVATE
   tinyusb_board
 )
 
-pico_enable_stdio_uart(feather_dualsense ${BUILD_DEBUG})
+pico_enable_stdio_uart(feather_dualsense 1)
 pico_enable_stdio_usb(feather_dualsense 0)
 
 pico_add_extra_outputs(feather_dualsense)
