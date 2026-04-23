@@ -28,16 +28,13 @@ struct ActiveController {
   uint64_t buttons;
   int32_t gyro_mouse_x_remainder_q16;
   int32_t gyro_mouse_y_remainder_q16;
-  // Gyro bias: initial calibration + recalibration after prolonged rest.
+  // Gyro bias in Q8 (fractional precision for slow EMA updates).
+  // Updated only when not touching and all 3 axes are still.
   int32_t gyro_calib_sum_x;
   int32_t gyro_calib_sum_y;
   uint16_t gyro_calib_count;
-  int16_t gyro_bias_x;
-  int16_t gyro_bias_y;
-  // Rest detection for recalibration (all 3 axes must be still).
-  int32_t gyro_rest_sum_x;
-  int32_t gyro_rest_sum_y;
-  uint16_t gyro_rest_count;
+  int32_t gyro_bias_x_q8;
+  int32_t gyro_bias_y_q8;
   bool touch0_active;
   uint8_t touch0_id;
   int16_t touch0_last_y;
@@ -79,11 +76,8 @@ void ClearHidState() {
   g_controller.gyro_calib_sum_x = 0;
   g_controller.gyro_calib_sum_y = 0;
   g_controller.gyro_calib_count = 0;
-  g_controller.gyro_bias_x = 0;
-  g_controller.gyro_bias_y = 0;
-  g_controller.gyro_rest_sum_x = 0;
-  g_controller.gyro_rest_sum_y = 0;
-  g_controller.gyro_rest_count = 0;
+  g_controller.gyro_bias_x_q8 = 0;
+  g_controller.gyro_bias_y_q8 = 0;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
   memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
 }
@@ -194,8 +188,12 @@ int16_t ClampI16(int32_t value) {
 }
 
 int32_t ShapeGyroDeltaQ16(int16_t raw) {
-  if (Abs32(raw) <= GYRO_MOUSE_DEADZONE) {
-    return 0;
+  // Soft suppression: proportionally reduce values below threshold instead of
+  // hard-cutting. output = raw * |raw| / threshold (quadratic fade-in).
+  constexpr int16_t kSoftThreshold = 15;
+  if (Abs32(raw) < kSoftThreshold) {
+    raw = static_cast<int16_t>(
+        (static_cast<int32_t>(raw) * Abs32(raw)) / kSoftThreshold);
   }
 
   const int32_t scaled_q16 = static_cast<int32_t>(raw) * GYRO_MOUSE_SENSITIVITY_Q16;
@@ -318,63 +316,55 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
     return false;
   }
 
-  if (!ParseTouchActive(report, len)) {
-    g_controller.gyro_mouse_x_remainder_q16 = 0;
-    g_controller.gyro_mouse_y_remainder_q16 = 0;
-    return false;
-  }
-
   const int16_t gyro_raw_x = ReadLe16(&report[report_base + kGyroX]);
   const int16_t gyro_raw_y = ReadLe16(&report[report_base + kGyroY]);
   const int16_t gyro_raw_z = ReadLe16(&report[report_base + kGyroZ]);
 
-  // Use yaw for horizontal cursor movement and pitch for vertical movement.
+  // Yaw → mouse X, pitch → mouse Y.
   const int16_t gyro_for_x = gyro_raw_y;
   const int16_t gyro_for_y = gyro_raw_x;
 
-  // Fast initial calibration: average the first kGyroBiasSamples reports.
+  // Fast initial calibration: average first kGyroBiasSamples reports.
   constexpr uint16_t kGyroBiasSamples = 250;
   if (g_controller.gyro_calib_count < kGyroBiasSamples) {
     g_controller.gyro_calib_sum_x += gyro_for_x;
     g_controller.gyro_calib_sum_y += gyro_for_y;
     ++g_controller.gyro_calib_count;
     if (g_controller.gyro_calib_count == kGyroBiasSamples) {
-      g_controller.gyro_bias_x = static_cast<int16_t>(
-          g_controller.gyro_calib_sum_x / kGyroBiasSamples);
-      g_controller.gyro_bias_y = static_cast<int16_t>(
-          g_controller.gyro_calib_sum_y / kGyroBiasSamples);
+      g_controller.gyro_bias_x_q8 =
+          (g_controller.gyro_calib_sum_x << 8) / kGyroBiasSamples;
+      g_controller.gyro_bias_y_q8 =
+          (g_controller.gyro_calib_sum_y << 8) / kGyroBiasSamples;
     }
     return false;
   }
 
-  const int16_t corrected_x = gyro_for_x - g_controller.gyro_bias_x;
-  const int16_t corrected_y = gyro_for_y - g_controller.gyro_bias_y;
-  const int16_t corrected_z = gyro_raw_z - g_controller.gyro_bias_x; // roll, bias approx
+  const int16_t bias_x = static_cast<int16_t>(g_controller.gyro_bias_x_q8 >> 8);
+  const int16_t bias_y = static_cast<int16_t>(g_controller.gyro_bias_y_q8 >> 8);
+  const int16_t corrected_x = gyro_for_x - bias_x;
+  const int16_t corrected_y = gyro_for_y - bias_y;
+  const int16_t corrected_z = gyro_raw_z - bias_x;  // roll — no own bias, use x as proxy
 
-  // Recalibrate after prolonged rest: all 3 axes must stay below threshold
-  // for kGyroRestSamples consecutive frames (~2s at 250Hz).
-  constexpr int16_t kRestThreshold = 20;
-  constexpr uint16_t kGyroRestSamples = 500;
-  if (Abs32(corrected_x) < kRestThreshold &&
+  // Continuous bias update via slow EMA (alpha≈0.01) — only when NOT touching
+  // and all 3 axes are still. This prevents bias drift during active aiming.
+  constexpr int16_t kRestThreshold = 12;
+  const bool touching = ParseTouchActive(report, len);
+  if (!touching &&
+      Abs32(corrected_x) < kRestThreshold &&
       Abs32(corrected_y) < kRestThreshold &&
       Abs32(corrected_z) < kRestThreshold) {
-    g_controller.gyro_rest_sum_x += gyro_for_x;
-    g_controller.gyro_rest_sum_y += gyro_for_y;
-    ++g_controller.gyro_rest_count;
-    if (g_controller.gyro_rest_count >= kGyroRestSamples) {
-      g_controller.gyro_bias_x = static_cast<int16_t>(
-          g_controller.gyro_rest_sum_x / g_controller.gyro_rest_count);
-      g_controller.gyro_bias_y = static_cast<int16_t>(
-          g_controller.gyro_rest_sum_y / g_controller.gyro_rest_count);
-      g_controller.gyro_rest_sum_x = 0;
-      g_controller.gyro_rest_sum_y = 0;
-      g_controller.gyro_rest_count = 0;
-    }
-  } else {
-    g_controller.gyro_rest_sum_x = 0;
-    g_controller.gyro_rest_sum_y = 0;
-    g_controller.gyro_rest_count = 0;
+    g_controller.gyro_bias_x_q8 +=
+        ((static_cast<int32_t>(gyro_for_x) << 8) - g_controller.gyro_bias_x_q8) / 100;
+    g_controller.gyro_bias_y_q8 +=
+        ((static_cast<int32_t>(gyro_for_y) << 8) - g_controller.gyro_bias_y_q8) / 100;
   }
+
+  if (!touching) {
+    g_controller.gyro_mouse_x_remainder_q16 = 0;
+    g_controller.gyro_mouse_y_remainder_q16 = 0;
+    return false;
+  }
+
   *mouse_x = ConsumeMouseDelta(
       static_cast<int32_t>(ShapeGyroDeltaQ16(corrected_x) * GYRO_MOUSE_X_FACTOR),
       &g_controller.gyro_mouse_x_remainder_q16);
