@@ -59,12 +59,34 @@ enum class ActionType : uint8_t {
   kKey,
   kModifier,
   kMouseButton,
+  kGamepadButton,
 };
 
 struct Action {
   ActionType type;
   uint16_t value;
 };
+
+// Gamepad button values for ActionType::kGamepadButton.
+// 0-7:  bit position in GamepadReport::buttons1
+// 8-14: bit position in GamepadReport::buttons2 (subtract 8 for actual bit)
+namespace gp {
+  constexpr uint16_t kY       = 0;   // buttons1 bit0  Triangle
+  constexpr uint16_t kX       = 1;   // buttons1 bit1  Square
+  constexpr uint16_t kB       = 2;   // buttons1 bit2  Circle
+  constexpr uint16_t kA       = 3;   // buttons1 bit3  Cross
+  constexpr uint16_t kLB      = 4;   // buttons1 bit4  L1
+  constexpr uint16_t kLT      = 5;   // buttons1 bit5  L2 digital
+  constexpr uint16_t kRB      = 6;   // buttons1 bit6  R1
+  constexpr uint16_t kRT      = 7;   // buttons1 bit7  R2 digital
+  constexpr uint16_t kMenu    = 8;   // buttons2 bit0  Options/Menu
+  constexpr uint16_t kGuide   = 9;   // buttons2 bit1  PS/Guide
+  // buttons2 bit2 = Assistant (no DualSense equivalent, always 0)
+  constexpr uint16_t kCapture = 11;  // buttons2 bit3  Touchpad/Capture
+  constexpr uint16_t kL3      = 12;  // buttons2 bit4  L3
+  constexpr uint16_t kR3      = 13;  // buttons2 bit5  R3
+  constexpr uint16_t kBack    = 14;  // buttons2 bit6  Create/Back
+}  // namespace gp
 
 struct AllowedDevice {
   uint16_t vid;
@@ -155,6 +177,105 @@ constexpr Action kDualSenseEdgeActions[kButtonCount] = {
     {ActionType::kKey, usb::kKeyX},                     // Fn1
     {ActionType::kKey, usb::kKeyY},                     // Fn2
 };
+
+constexpr Action kDualSenseGamepadActions[kButtonCount] = {
+    {ActionType::kGamepadButton, gp::kX},       // Square       → X
+    {ActionType::kGamepadButton, gp::kA},       // Cross        → A
+    {ActionType::kGamepadButton, gp::kB},       // Circle       → B
+    {ActionType::kGamepadButton, gp::kY},       // Triangle     → Y
+    {ActionType::kGamepadButton, gp::kLB},      // L1           → LB
+    {ActionType::kGamepadButton, gp::kRB},      // R1           → RB
+    {ActionType::kGamepadButton, gp::kLT},      // L2 digital   → LT
+    {ActionType::kGamepadButton, gp::kRT},      // R2 digital   → RT
+    {ActionType::kGamepadButton, gp::kBack},    // Create       → Back
+    {ActionType::kGamepadButton, gp::kMenu},    // Options      → Menu
+    {ActionType::kGamepadButton, gp::kL3},      // L3           → L3
+    {ActionType::kGamepadButton, gp::kR3},      // R3           → R3
+    {ActionType::kGamepadButton, gp::kCapture}, // Touchpad     → Capture
+    {ActionType::kGamepadButton, gp::kGuide},   // PS           → Guide
+    {ActionType::kNone, 0},                     // Mute         → none
+    {ActionType::kNone, 0},                     // LeftPaddle   → none (no paddles on standard DS)
+    {ActionType::kNone, 0},                     // RightPaddle  → none
+    {ActionType::kNone, 0},                     // DpadUp       → hat (direct)
+    {ActionType::kNone, 0},                     // DpadRight    → hat (direct)
+    {ActionType::kNone, 0},                     // DpadDown     → hat (direct)
+    {ActionType::kNone, 0},                     // DpadLeft     → hat (direct)
+    {ActionType::kNone, 0},                     // InnerRing    → analog
+    {ActionType::kNone, 0},                     // OuterRing    → analog
+    {ActionType::kNone, 0},                     // LStickN      → analog
+    {ActionType::kNone, 0},                     // LStickE      → analog
+    {ActionType::kNone, 0},                     // LStickS      → analog
+    {ActionType::kNone, 0},                     // LStickW      → analog
+    {ActionType::kNone, 0},                     // RStick1      → analog
+    {ActionType::kNone, 0},                     // RStick2      → analog
+    {ActionType::kNone, 0},                     // RStick3      → analog
+    {ActionType::kNone, 0},                     // RStick4      → analog
+    {ActionType::kNone, 0},                     // RStick5      → analog
+    {ActionType::kNone, 0},                     // RStick6      → analog
+    {ActionType::kNone, 0},                     // RStick7      → analog
+    {ActionType::kNone, 0},                     // RStick8      → analog
+    {ActionType::kNone, 0},                     // Fn1          → none
+    {ActionType::kNone, 0},                     // Fn2          → none
+};
+
+constexpr Action kDualSenseEdgeGamepadActions[kButtonCount] = {
+    {ActionType::kGamepadButton, gp::kX},       // Square       → X
+    {ActionType::kGamepadButton, gp::kA},       // Cross        → A
+    {ActionType::kGamepadButton, gp::kB},       // Circle       → B
+    {ActionType::kGamepadButton, gp::kY},       // Triangle     → Y
+    {ActionType::kGamepadButton, gp::kLB},      // L1           → LB
+    {ActionType::kGamepadButton, gp::kRB},      // R1           → RB
+    {ActionType::kGamepadButton, gp::kLT},      // L2 digital   → LT
+    {ActionType::kGamepadButton, gp::kRT},      // R2 digital   → RT
+    {ActionType::kGamepadButton, gp::kBack},    // Create       → Back
+    {ActionType::kGamepadButton, gp::kMenu},    // Options      → Menu
+    {ActionType::kGamepadButton, gp::kL3},      // L3           → L3
+    {ActionType::kGamepadButton, gp::kR3},      // R3           → R3
+    {ActionType::kGamepadButton, gp::kCapture}, // Touchpad     → Capture
+    {ActionType::kGamepadButton, gp::kGuide},   // PS           → Guide
+    {ActionType::kNone, 0},                     // Mute         → none
+    {ActionType::kGamepadButton, gp::kL3},      // LeftPaddle   → L3
+    {ActionType::kGamepadButton, gp::kA},       // RightPaddle  → A
+    {ActionType::kNone, 0},                     // DpadUp       → hat (direct)
+    {ActionType::kNone, 0},                     // DpadRight    → hat (direct)
+    {ActionType::kNone, 0},                     // DpadDown     → hat (direct)
+    {ActionType::kNone, 0},                     // DpadLeft     → hat (direct)
+    {ActionType::kNone, 0},                     // InnerRing    → analog
+    {ActionType::kNone, 0},                     // OuterRing    → analog
+    {ActionType::kNone, 0},                     // LStickN      → analog
+    {ActionType::kNone, 0},                     // LStickE      → analog
+    {ActionType::kNone, 0},                     // LStickS      → analog
+    {ActionType::kNone, 0},                     // LStickW      → analog
+    {ActionType::kNone, 0},                     // RStick1      → analog
+    {ActionType::kNone, 0},                     // RStick2      → analog
+    {ActionType::kNone, 0},                     // RStick3      → analog
+    {ActionType::kNone, 0},                     // RStick4      → analog
+    {ActionType::kNone, 0},                     // RStick5      → analog
+    {ActionType::kNone, 0},                     // RStick6      → analog
+    {ActionType::kNone, 0},                     // RStick7      → analog
+    {ActionType::kNone, 0},                     // RStick8      → analog
+    {ActionType::kNone, 0},                     // Fn1          → none
+    {ActionType::kNone, 0},                     // Fn2          → none
+};
+
+struct GamepadMappingSet {
+  uint16_t pid;
+  const Action* actions;
+};
+
+constexpr GamepadMappingSet kGamepadMappingSets[] = {
+    {kDualSensePid,        kDualSenseGamepadActions},
+    {kDualSenseEdgePid,    kDualSenseEdgeGamepadActions},
+    {kDualSenseEdgeAltPid, kDualSenseEdgeGamepadActions},
+};
+
+inline const Action* FindGamepadMapping(uint16_t vid, uint16_t pid) {
+  if (vid != kSonyVid) return nullptr;
+  for (const auto& set : kGamepadMappingSets) {
+    if (set.pid == pid) return set.actions;
+  }
+  return nullptr;
+}
 
 constexpr AllowedDevice kAllowedDevices[] = {
     {kSonyVid, kDualSensePid},

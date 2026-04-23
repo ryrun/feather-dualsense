@@ -24,6 +24,7 @@ struct ActiveController {
   uint8_t dev_addr;
   uint8_t instance;
   const mapping::Action* actions;
+  const mapping::Action* gamepad_actions;
   uint64_t buttons;
   int32_t gyro_mouse_x_remainder_q16;
   int32_t gyro_mouse_y_remainder_q16;
@@ -148,6 +149,9 @@ void ApplyAction(const mapping::Action& action, bool pressed, bool* keyboard_cha
         g_controller.mouse.buttons &= ~static_cast<uint8_t>(action.value);
         *mouse_changed |= before != g_controller.mouse.buttons;
       }
+      return;
+
+    default:
       return;
   }
 }
@@ -616,7 +620,7 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
                                                  uint16_t len) {
   device_out::GamepadReport gp = {};
   gp.hat = 0x08;  // hat center (null state)
-  gp.left_x = gp.left_y = gp.right_x = gp.right_y = 0x80;  // sticks center
+  gp.left_x = gp.left_y = gp.right_x = gp.right_y = 0x80;
 
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
   const uint8_t button_base = report_base + 7;
@@ -625,45 +629,31 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
     return gp;
   }
 
-  const uint8_t dpad_shapes    = report[button_base + 0];
-  const uint8_t shoulders      = report[button_base + 1];
-  const uint8_t system_buttons = report[button_base + 2];
-
-  // Stadia buttons1: Y(Triangle), X(Square), B(Circle), A(Cross), LB, LT, RB, RT
-  uint8_t b1 = 0;
-  if (dpad_shapes  & 0x80) b1 |= (1u << 0);  // Triangle → Y (bit0)
-  if (dpad_shapes  & 0x10) b1 |= (1u << 1);  // Square   → X (bit1)
-  if (dpad_shapes  & 0x40) b1 |= (1u << 2);  // Circle   → B (bit2)
-  if (dpad_shapes  & 0x20) b1 |= (1u << 3);  // Cross    → A (bit3)
-  if (shoulders    & 0x01) b1 |= (1u << 4);  // L1       → LB (bit4)
-  if (shoulders    & 0x04) b1 |= (1u << 5);  // L2 dig   → LT (bit5)
-  if (shoulders    & 0x02) b1 |= (1u << 6);  // R1       → RB (bit6)
-  if (shoulders    & 0x08) b1 |= (1u << 7);  // R2 dig   → RT (bit7)
-
-  // Right Edge paddle → A (bit3 of buttons1)
-  if (system_buttons & 0x80) b1 |= (1u << 3);
-
-  // Stadia buttons2: Menu(Options), Guide(PS), Assistant, Capture(Touchpad), L3, R3, Back(Create)
-  uint8_t b2 = 0;
-  if (shoulders    & 0x20) b2 |= (1u << 0);  // Options   → Menu (bit0)
-  if (system_buttons & 0x01) b2 |= (1u << 1); // PS        → Guide (bit1)
-  // bit2 = Assistant: no DualSense mapping, leave 0
-  if (system_buttons & 0x02) b2 |= (1u << 3); // Touchpad  → Capture (bit3)
-  if (shoulders    & 0x40) b2 |= (1u << 4);  // L3 (bit4)
-  if (shoulders    & 0x80) b2 |= (1u << 5);  // R3 (bit5)
-  if (shoulders    & 0x10) b2 |= (1u << 6);  // Create    → Back (bit6)
-
-  // Left Edge paddle → L3 (bit4 of buttons2)
-  if (system_buttons & 0x40) b2 |= (1u << 4);
-
-  gp.buttons1 = b1;
-  gp.buttons2 = b2;
-
-  const uint8_t hat = dpad_shapes & 0x0F;
+  // D-Pad → hat (direct, independent of mapping table)
+  const uint8_t hat = report[button_base] & 0x0F;
   gp.hat = (hat > 7) ? 0x08 : hat;
 
+  // Digital buttons via mapping table
+  const uint64_t button_mask = ParseDualSenseButtons(report, len);
+  const mapping::Action* actions = g_controller.gamepad_actions;
+  if (actions) {
+    for (size_t i = 0; i < mapping::kButtonCount; ++i) {
+      if (!(button_mask & mapping::ButtonMask(static_cast<mapping::Button>(i)))) {
+        continue;
+      }
+      const mapping::Action& a = actions[i];
+      if (a.type != mapping::ActionType::kGamepadButton) continue;
+      const uint16_t v = a.value;
+      if (v < 8) {
+        gp.buttons1 |= static_cast<uint8_t>(1u << v);
+      } else {
+        gp.buttons2 |= static_cast<uint8_t>(1u << (v - 8));
+      }
+    }
+  }
+
+  // Sticks and triggers (direct copy, sanitize sticks: Logical Min=1)
   if (len >= static_cast<uint16_t>(report_base + 6)) {
-    // Sanitize: Stadia Logical Minimum = 1, so 0 → 1
     auto sanitize = [](uint8_t v) -> uint8_t { return v == 0 ? 1 : v; };
     gp.left_x  = sanitize(report[report_base + 0]);
     gp.left_y  = sanitize(report[report_base + 1]);
@@ -723,11 +713,13 @@ extern "C" void tuh_hid_mount_cb(uint8_t dev_addr,
   if (actions == nullptr || g_controller.active) {
     return;
   }
+  const mapping::Action* gamepad_actions = mapping::FindGamepadMapping(vid, pid);
 
   g_controller.active = true;
   g_controller.dev_addr = dev_addr;
   g_controller.instance = instance;
   g_controller.actions = actions;
+  g_controller.gamepad_actions = gamepad_actions;
   g_controller.allowed_device_mounted = true;
   g_controller.allowed_dev_addr = dev_addr;
   SetControllerLed(true);
