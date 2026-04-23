@@ -594,6 +594,21 @@ void ProcessButtons(uint64_t next_buttons) {
   }
 }
 
+// Checks for the mode-switch combo (Touchpad click + Options held simultaneously).
+// Arms when both are pressed; calls ToggleAndReboot() (noreturn) when one is released.
+static bool s_combo_armed = false;
+static void CheckModeCombo(uint64_t buttons) {
+  constexpr uint64_t kOptions  = mapping::ButtonMask(mapping::Button::kOptions);
+  constexpr uint64_t kTouchpad = mapping::ButtonMask(mapping::Button::kTouchpad);
+  constexpr uint64_t kCombo    = kOptions | kTouchpad;
+
+  if ((buttons & kCombo) == kCombo) {
+    s_combo_armed = true;
+  } else if (s_combo_armed) {
+    mode::ToggleAndReboot();
+  }
+}
+
 }  // namespace
 
 // Builds a Nintendo Switch Pro Controller HID report from a DualSense input.
@@ -788,13 +803,16 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
 
   DebugPrintReport(report, len);
 
+  const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
+  CheckModeCombo(raw_buttons);
+
   if (mode::GetActive() == mode::Mode::kGamepad) {
     device_out::SendGamepad(ParseForGamepad(report, len));
     tuh_hid_receive_report(dev_addr, instance);
     return;
   }
 
-  ProcessButtons(ParseDualSenseButtons(report, len) |
+  ProcessButtons(raw_buttons |
                  ParseLeftStickButtons(report, len)  |
                  ParseRightStickButtons(report, len));
   ParseTouchpadClick(report, len);
