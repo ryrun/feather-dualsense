@@ -6,10 +6,44 @@
 #include "pico/stdlib.h"
 #include "tusb.h"
 
+#if CFG_TUH_RPI_PIO_USB
+#include "pio_usb.h"
+#endif
+
+#ifndef HOST_VBUS_EN_PIN
+#define HOST_VBUS_EN_PIN (-1)
+#endif
+
 output_state g_output_state{};
+
+namespace {
+#if CFG_TUH_RPI_PIO_USB
+repeating_timer_t g_host_sof_timer;
+
+bool host_sof_timer_cb(repeating_timer_t*) {
+  pio_usb_host_frame();
+  return true;
+}
+#endif
+
+void extra_init() {
+#if HOST_VBUS_EN_PIN >= 0
+  gpio_init(HOST_VBUS_EN_PIN);
+  gpio_set_dir(HOST_VBUS_EN_PIN, GPIO_OUT);
+  gpio_put(HOST_VBUS_EN_PIN, 1);
+#endif
+
+#if CFG_TUH_RPI_PIO_USB
+  pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+  tuh_configure(1, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+  add_repeating_timer_us(-1000, host_sof_timer_cb, nullptr, &g_host_sof_timer);
+#endif
+}
+}  // namespace
 
 int main() {
   board_init();
+  extra_init();
 
   tusb_rhport_init_t dev_init{};
   dev_init.role = TUSB_ROLE_DEVICE;

@@ -87,3 +87,14 @@ sudo usbhid-dump -m 054c:0ce6 -es
 ```
 
 Use debug build (`-DBUILD_DEBUG=ON`) to print report summary over UART while comparing host report activity.
+
+
+### Optional host VBUS enable pin
+
+If your Feather variant gates host VBUS through an enable GPIO, configure it at build time:
+
+```bash
+PICO_BOARD=feather_host cmake .. -DHOST_VBUS_EN_PIN=<gpio_number>
+```
+
+Default is `-1` (no explicit VBUS GPIO toggle).

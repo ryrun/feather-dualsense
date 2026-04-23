@@ -51,6 +51,13 @@ Expected output: `build/feather_dualsense.uf2`
 
 On macOS, the device should enumerate as a USB HID composite device with one keyboard interface and one mouse interface.
 
+
+## Host init notes (Feather USB host)
+
+This firmware initializes RP2040 PIO USB host support and starts a 1 ms SOF timer (`pio_usb_host_frame()`) during startup, similar to the known working pattern used by hid-remapper on single-RP2040 host builds.
+
+If your board revision requires explicit VBUS power switching, set `-DHOST_VBUS_EN_PIN=<gpio>` at CMake configure time. Default is `-1` (disabled).
+
 ## Flash
 
 1. Hold **BOOTSEL** on Feather and connect USB.

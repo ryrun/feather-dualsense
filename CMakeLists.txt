@@ -13,6 +13,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif ()
 
 option(BUILD_DEBUG "Enable debug UART logging" OFF)
+set(HOST_VBUS_EN_PIN "-1" CACHE STRING "Optional GPIO pin to enable host VBUS power; -1 disables")
 
 pico_sdk_init()
 
@@ -50,6 +51,7 @@ target_compile_definitions(feather_dualsense PRIVATE
   PICO_DEFAULT_UART_RX_PIN=1
   CFG_TUH_ENABLED=1
   CFG_TUD_ENABLED=1
+  HOST_VBUS_EN_PIN=${HOST_VBUS_EN_PIN}
 )
 
 target_link_libraries(feather_dualsense PRIVATE
