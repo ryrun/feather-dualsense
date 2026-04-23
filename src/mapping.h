@@ -83,12 +83,12 @@ namespace gp {
   constexpr uint16_t kLB      = 10;  // buttons2 bit2  L1  (confirmed via touchpad test)
   constexpr uint16_t kRB      = 9;   // buttons2 bit1  R1  (hypothesis: adjacent to LB)
   // Triggers digital + system buttons — placeholders in bits 0-6, unverified
-  constexpr uint16_t kLT      = 0;   // buttons1 bit0  L2 digital  (unverified)
-  constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (unverified, moved from bit1)
-  constexpr uint16_t kMenu    = 2;   // buttons1 bit2  Options/Menu  (unverified)
-  constexpr uint16_t kGuide   = 1;   // buttons1 bit1  PS/Guide  (confirmed via kRT→Guide test)
+  constexpr uint16_t kLT      = 2;   // buttons1 bit2  L2 digital  (unverified, moved from bit0)
+  constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (confirmed)
+  constexpr uint16_t kMenu    = 5;   // buttons1 bit5  Options/Menu  (unverified)
+  constexpr uint16_t kGuide   = 1;   // buttons1 bit1  PS/Guide  (confirmed)
   constexpr uint16_t kBack    = 4;   // buttons1 bit4  Create/Back  (unverified)
-  constexpr uint16_t kCapture = 5;   // buttons1 bit5  Touchpad/Capture  (unverified)
+  constexpr uint16_t kCapture = 0;   // buttons1 bit0  Touchpad/Capture  (confirmed via kLT→Capture test)
 }  // namespace gp
 
 struct AllowedDevice {
