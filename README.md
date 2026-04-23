@@ -75,3 +75,7 @@ Implementation patterns were inspired by TinyUSB host/device HID examples and jf
 
 
 If `./pico-sdk` is absent, CMake can clone pico-sdk automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`) using `--recurse-submodules` to pull required dependencies (TinyUSB and related components).
+
+## Note
+
+This project is also a vibecoding experiment built with ChatGPT Codex.

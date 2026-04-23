@@ -12,16 +12,6 @@ if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif ()
 
-set(COMMON_FLAGS "-ffunction-sections -fdata-sections")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} -fno-exceptions -fno-rtti")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
-
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -flto")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -flto")
-endif ()
-
 option(BUILD_DEBUG "Enable debug UART logging" OFF)
 
 pico_sdk_init()
@@ -41,9 +31,26 @@ target_include_directories(feather_dualsense PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
+# Keep aggressive optimization flags local to this firmware target only.
+target_compile_options(feather_dualsense PRIVATE
+  -ffunction-sections
+  -fdata-sections
+  $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+  $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+  $<$<CONFIG:Release>:-O3>
+  $<$<CONFIG:Release>:-flto>
+)
+
+target_link_options(feather_dualsense PRIVATE
+  -Wl,--gc-sections
+  $<$<CONFIG:Release>:-flto>
+)
+
 target_compile_definitions(feather_dualsense PRIVATE
   PICO_DEFAULT_UART_TX_PIN=0
   PICO_DEFAULT_UART_RX_PIN=1
+  CFG_TUH_ENABLED=1
+  CFG_TUD_ENABLED=1
 )
 
 target_link_libraries(feather_dualsense PRIVATE
@@ -57,9 +64,3 @@ pico_enable_stdio_uart(feather_dualsense ${BUILD_DEBUG})
 pico_enable_stdio_usb(feather_dualsense 0)
 
 pico_add_extra_outputs(feather_dualsense)
-
-# Ensure TinyUSB host + device are both enabled.
-target_compile_definitions(feather_dualsense PRIVATE
-  CFG_TUH_ENABLED=1
-  CFG_TUD_ENABLED=1
-)
