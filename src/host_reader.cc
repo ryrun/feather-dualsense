@@ -28,6 +28,12 @@ struct ActiveController {
   uint64_t buttons;
   int32_t gyro_mouse_x_remainder_q16;
   int32_t gyro_mouse_y_remainder_q16;
+  // Gyro bias calibration: accumulate first kGyroBiasSamples reports at rest.
+  int32_t gyro_calib_sum_x;
+  int32_t gyro_calib_sum_y;
+  uint16_t gyro_calib_count;
+  int16_t gyro_bias_x;
+  int16_t gyro_bias_y;
   bool touch0_active;
   uint8_t touch0_id;
   int16_t touch0_last_y;
@@ -66,6 +72,11 @@ void ClearHidState() {
   g_controller.instance = 0;
   g_controller.actions = nullptr;
   g_controller.buttons = 0;
+  g_controller.gyro_calib_sum_x = 0;
+  g_controller.gyro_calib_sum_y = 0;
+  g_controller.gyro_calib_count = 0;
+  g_controller.gyro_bias_x = 0;
+  g_controller.gyro_bias_y = 0;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
   memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
 }
@@ -308,11 +319,29 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
   // Use yaw for horizontal cursor movement and pitch for vertical movement.
   const int16_t gyro_for_x = ReadLe16(&report[report_base + kGyroY]);
   const int16_t gyro_for_y = ReadLe16(&report[report_base + kGyroX]);
+
+  // Bias calibration: average the first kGyroBiasSamples reports at rest.
+  constexpr uint16_t kGyroBiasSamples = 250;
+  if (g_controller.gyro_calib_count < kGyroBiasSamples) {
+    g_controller.gyro_calib_sum_x += gyro_for_x;
+    g_controller.gyro_calib_sum_y += gyro_for_y;
+    ++g_controller.gyro_calib_count;
+    if (g_controller.gyro_calib_count == kGyroBiasSamples) {
+      g_controller.gyro_bias_x = static_cast<int16_t>(
+          g_controller.gyro_calib_sum_x / kGyroBiasSamples);
+      g_controller.gyro_bias_y = static_cast<int16_t>(
+          g_controller.gyro_calib_sum_y / kGyroBiasSamples);
+    }
+    return false;
+  }
+
+  const int16_t corrected_x = gyro_for_x - g_controller.gyro_bias_x;
+  const int16_t corrected_y = gyro_for_y - g_controller.gyro_bias_y;
   *mouse_x = ConsumeMouseDelta(
-      static_cast<int32_t>(ShapeGyroDeltaQ16(gyro_for_x) * GYRO_MOUSE_X_FACTOR),
+      static_cast<int32_t>(ShapeGyroDeltaQ16(corrected_x) * GYRO_MOUSE_X_FACTOR),
       &g_controller.gyro_mouse_x_remainder_q16);
   *mouse_y = ConsumeMouseDelta(
-      static_cast<int32_t>(ShapeGyroDeltaQ16(gyro_for_y) * GYRO_MOUSE_Y_FACTOR),
+      static_cast<int32_t>(ShapeGyroDeltaQ16(corrected_y) * GYRO_MOUSE_Y_FACTOR),
       &g_controller.gyro_mouse_y_remainder_q16);
   return *mouse_x != 0 || *mouse_y != 0;
 #else
