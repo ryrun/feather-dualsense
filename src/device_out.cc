@@ -48,10 +48,22 @@ extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance,
                                            uint8_t* buffer,
                                            uint16_t reqlen) {
   (void)instance;
-  (void)report_id;
   (void)report_type;
-  (void)buffer;
-  (void)reqlen;
+
+  // Respond to GET_REPORT for the gamepad input report with the neutral state.
+  // macOS sends this immediately on connect to verify the device; returning
+  // 0 bytes can cause the controller to be ignored.
+  if (mode::GetActive() == mode::Mode::kGamepad &&
+      report_id == device_out::kReportIdGamepad &&
+      reqlen >= static_cast<uint16_t>(sizeof(device_out::GamepadReport))) {
+    device_out::GamepadReport neutral = {};
+    neutral.hat      = 0x08;
+    neutral.left_x   = neutral.left_y   = 0x80;
+    neutral.right_x  = neutral.right_y  = 0x80;
+    memcpy(buffer, &neutral, sizeof(device_out::GamepadReport));
+    return sizeof(device_out::GamepadReport);
+  }
+
   return 0;
 }
 
