@@ -26,9 +26,10 @@ enum EndpointAddressKbm : uint8_t {
 
 constexpr uint16_t kUsbVid    = 0xCafe;
 constexpr uint16_t kUsbPidKbm = 0x4023;
-// Google VID + Stadia PID: recognized natively by macOS, Chrome and SDL2.
-constexpr uint16_t kUsbVidGp  = 0x18D1;
-constexpr uint16_t kUsbPidGp  = 0x9400;
+// Generic gamepad: own VID/PID so macOS uses our HID descriptor directly
+// without applying any hardcoded controller-specific mapping.
+constexpr uint16_t kUsbVidGp  = 0x2E8A;  // Raspberry Pi Foundation
+constexpr uint16_t kUsbPidGp  = 0x4024;
 constexpr uint16_t kUsbBcd    = 0x0100;
 
 uint8_t const kDescHidKeyboard[] = {
@@ -209,8 +210,8 @@ char const* kStringDescriptorsKbm[] = {
 
 char const* kStringDescriptorsGamepad[] = {
     nullptr,
-    "Google LLC",
-    "Stadia Controller rev. A",
+    "feather-dualsense",
+    "DualSense Gamepad",
 };
 
 uint16_t g_string_desc[32];
