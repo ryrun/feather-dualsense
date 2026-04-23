@@ -26,10 +26,10 @@ enum EndpointAddressKbm : uint8_t {
 
 constexpr uint16_t kUsbVid    = 0xCafe;
 constexpr uint16_t kUsbPidKbm = 0x4023;
-// Nintendo Switch Pro Controller: native HID, macOS reads descriptor directly.
-constexpr uint16_t kUsbVidGp  = 0x057E;  // Nintendo Co., Ltd.
-constexpr uint16_t kUsbPidGp  = 0x2009;  // Pro Controller
-constexpr uint16_t kUsbBcd    = 0x0200;
+// Stadia Controller Rev. A: Google VID/PID, macOS GCController recognizes natively.
+constexpr uint16_t kUsbVidGp  = 0x18D1;  // Google LLC
+constexpr uint16_t kUsbPidGp  = 0x9400;  // Stadia Controller
+constexpr uint16_t kUsbBcd    = 0x0100;
 
 uint8_t const kDescHidKeyboard[] = {
     0x05, 0x01,                                  // Usage Page (Generic Desktop)
@@ -125,52 +125,97 @@ enum EndpointAddressGp : uint8_t {
 };
 
 // Nintendo Switch Pro Controller USB HID descriptor.
-// No Report ID. Report layout (7 bytes):
-//   buttons (uint16): bits 0-13 active, bits 14-15 padding
-//   hat     (uint8):  bits 0-3 = hat (0=N…7=NW, >=8=center), bits 4-7 = 0
-//   left_x, left_y, right_x, right_y (uint8, 0-255, 128=center)
+// Exact Stadia Controller Rev. A HID descriptor.
+// Report ID 3, 10-byte input payload:
+//   [0] hat(4)+pad(4)  [1] buttons1  [2] buttons2(6)+pad  [3-6] LX/LY/RX/RY
+//   [7] brake/L2  [8] accel/R2  [9] consumer(3)+pad(5)
 uint8_t const kDescHidGamepad[] = {
-    0x05, 0x01,                         // Usage Page (Generic Desktop)
-    0x09, 0x05,                         // Usage (Gamepad)
-    0xA1, 0x01,                         // Collection (Application)
-    // 14 buttons
-    0x15, 0x00,                         // Logical Minimum (0)
-    0x25, 0x01,                         // Logical Maximum (1)
-    0x35, 0x00,                         // Physical Minimum (0)
-    0x45, 0x01,                         // Physical Maximum (1)
-    0x75, 0x01,                         // Report Size (1)
-    0x95, 0x0E,                         // Report Count (14)
-    0x05, 0x09,                         // Usage Page (Button)
-    0x19, 0x01,                         // Usage Minimum (1)
-    0x29, 0x0E,                         // Usage Maximum (14)
-    0x81, 0x02,                         // Input (Data, Variable, Absolute)
-    // 2 padding bits
-    0x95, 0x02,                         // Report Count (2)
-    0x81, 0x01,                         // Input (Constant)
-    // Hat switch (4 bits, null state = values >= 8)
-    0x05, 0x01,                         // Usage Page (Generic Desktop)
-    0x25, 0x07,                         // Logical Maximum (7)
-    0x46, 0x3B, 0x01,                   // Physical Maximum (315)
-    0x75, 0x04,                         // Report Size (4)
-    0x95, 0x01,                         // Report Count (1)
-    0x65, 0x14,                         // Unit (Degrees)
-    0x09, 0x39,                         // Usage (Hat Switch)
-    0x81, 0x42,                         // Input (Data, Variable, Absolute, Null State)
+    0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x05,                    // Usage (Game Pad)
+    0xA1, 0x01,                    // Collection (Application)
+    0x85, 0x03,                    //   Report ID (3)
+    // D-Pad / Hat
+    0x05, 0x01,                    //   Usage Page (Generic Desktop Ctrls)
+    0x75, 0x04,                    //   Report Size (4)
+    0x95, 0x01,                    //   Report Count (1)
+    0x25, 0x07,                    //   Logical Maximum (7)
+    0x46, 0x3B, 0x01,              //   Physical Maximum (315)
+    0x65, 0x14,                    //   Unit (English Rotation, Centimeter)
+    0x09, 0x39,                    //   Usage (Hat switch)
+    0x81, 0x42,                    //   Input (Data,Var,Abs,Null State)
+    0x45, 0x00,                    //   Physical Maximum (0)
+    0x65, 0x00,                    //   Unit (None)
     // 4 padding bits
-    0x65, 0x00,                         // Unit (None)
-    0x95, 0x01,                         // Report Count (1)
-    0x81, 0x01,                         // Input (Constant)
-    // LX (X), LY (Y), RX (Z), RY (Rz) — all uint8 0-255
-    0x26, 0xFF, 0x00,                   // Logical Maximum (255)
-    0x46, 0xFF, 0x00,                   // Physical Maximum (255)
-    0x09, 0x30,                         // Usage (X)   — Left X
-    0x09, 0x31,                         // Usage (Y)   — Left Y
-    0x09, 0x32,                         // Usage (Z)   — Right X
-    0x09, 0x35,                         // Usage (Rz)  — Right Y
-    0x75, 0x08,                         // Report Size (8)
-    0x95, 0x04,                         // Report Count (4)
-    0x81, 0x02,                         // Input (Data, Variable, Absolute)
-    0xC0,                               // End Collection
+    0x75, 0x01,                    //   Report Size (1)
+    0x95, 0x04,                    //   Report Count (4)
+    0x81, 0x01,                    //   Input (Const)
+    // 15 buttons (buttons1 + buttons2)
+    0x05, 0x09,                    //   Usage Page (Button)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x25, 0x01,                    //   Logical Maximum (1)
+    0x75, 0x01,                    //   Report Size (1)
+    0x95, 0x0F,                    //   Report Count (15)
+    0x09, 0x12, 0x09, 0x11, 0x09, 0x14, 0x09, 0x13,  // Y, X, B, A
+    0x09, 0x0D, 0x09, 0x0C, 0x09, 0x0B, 0x09, 0x0F,  // LB, LT, RB, RT
+    0x09, 0x0E, 0x09, 0x08, 0x09, 0x07, 0x09, 0x05,  // F,G,H,I
+    0x09, 0x04, 0x09, 0x02, 0x09, 0x01,              // J,K,L
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    // 1 padding bit
+    0x75, 0x01,                    //   Report Size (1)
+    0x95, 0x01,                    //   Report Count (1)
+    0x81, 0x01,                    //   Input (Const)
+    // Left Stick X/Y (Logical Min=1, range 1-255, neutral=128)
+    0x05, 0x01,                    //   Usage Page (Generic Desktop Ctrls)
+    0x15, 0x01,                    //   Logical Minimum (1)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
+    0x09, 0x01,                    //   Usage (Pointer)
+    0xA1, 0x00,                    //   Collection (Physical)
+    0x09, 0x30,                    //     Usage (X)
+    0x09, 0x31,                    //     Usage (Y)
+    0x75, 0x08,                    //     Report Size (8)
+    0x95, 0x02,                    //     Report Count (2)
+    0x81, 0x02,                    //     Input (Data,Var,Abs)
+    0xC0,                          //   End Collection
+    // Right Stick X/Y
+    0x09, 0x01,                    //   Usage (Pointer)
+    0xA1, 0x00,                    //   Collection (Physical)
+    0x09, 0x32,                    //     Usage (Z)
+    0x09, 0x35,                    //     Usage (Rz)
+    0x75, 0x08,                    //     Report Size (8)
+    0x95, 0x02,                    //     Report Count (2)
+    0x81, 0x02,                    //     Input (Data,Var,Abs)
+    0xC0,                          //   End Collection
+    // Brake (L2) and Accelerator (R2)
+    0x05, 0x02,                    //   Usage Page (Sim Ctrls)
+    0x75, 0x08,                    //   Report Size (8)
+    0x95, 0x02,                    //   Report Count (2)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
+    0x09, 0xC5,                    //   Usage (Brake)
+    0x09, 0xC4,                    //   Usage (Accelerator)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    // Consumer controls (volume up, volume down, play/pause + 5 pad bits)
+    0x05, 0x0C,                    //   Usage Page (Consumer)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x25, 0x01,                    //   Logical Maximum (1)
+    0x09, 0xE9, 0x09, 0xEA,        //   Usage (Volume Increment, Volume Decrement)
+    0x75, 0x01,                    //   Report Size (1)
+    0x95, 0x02,                    //   Report Count (2)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    0x09, 0xCD,                    //   Usage (Play/Pause)
+    0x95, 0x01,                    //   Report Count (1)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    0x95, 0x05,                    //   Report Count (5)
+    0x81, 0x01,                    //   Input (Const)
+    // Output Report ID 5 (rumble via PID)
+    0x85, 0x05,                    //   Report ID (5)
+    0x06, 0x0F, 0x00,              //   Usage Page (PID Page)
+    0x09, 0x97,                    //   Usage (0x97)
+    0x75, 0x10,                    //   Report Size (16)
+    0x95, 0x02,                    //   Report Count (2)
+    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65535)
+    0x91, 0x02,                    //   Output (Data,Var,Abs)
+    0xC0,                          // End Collection
 };
 
 uint8_t const kDescConfigGamepad[] = {
@@ -208,8 +253,8 @@ char const* kStringDescriptorsKbm[] = {
 
 char const* kStringDescriptorsGamepad[] = {
     nullptr,
-    "Nintendo Co., Ltd.",
-    "Pro Controller",
+    "Google LLC",
+    "Stadia Controller rev. A",
 };
 
 uint16_t g_string_desc[32];

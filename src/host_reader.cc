@@ -615,7 +615,8 @@ void ProcessButtons(uint64_t next_buttons) {
 static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
                                                  uint16_t len) {
   device_out::GamepadReport gp = {};
-  gp.hat = 0x08;  // center (null state: any value >= 8)
+  gp.hat = 0x08;  // hat center (null state)
+  gp.left_x = gp.left_y = gp.right_x = gp.right_y = 0x80;  // sticks center
 
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
   const uint8_t button_base = report_base + 7;
@@ -628,35 +629,51 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   const uint8_t shoulders      = report[button_base + 1];
   const uint8_t system_buttons = report[button_base + 2];
 
-  uint16_t b = 0;
-  if (dpad_shapes  & 0x20) b |= (1u << 0);   // Cross     → A
-  if (dpad_shapes  & 0x40) b |= (1u << 1);   // Circle    → B
-  if (dpad_shapes  & 0x10) b |= (1u << 2);   // Square    → X
-  if (dpad_shapes  & 0x80) b |= (1u << 3);   // Triangle  → Y
-  if (shoulders    & 0x01) b |= (1u << 4);   // L1        → L
-  if (shoulders    & 0x02) b |= (1u << 5);   // R1        → R
-  if (shoulders    & 0x04) b |= (1u << 6);   // L2 digital → ZL
-  if (shoulders    & 0x08) b |= (1u << 7);   // R2 digital → ZR
-  if (shoulders    & 0x10) b |= (1u << 8);   // Create    → Minus
-  if (shoulders    & 0x20) b |= (1u << 9);   // Options   → Plus
-  if (shoulders    & 0x40) b |= (1u << 10);  // L3
-  if (shoulders    & 0x80) b |= (1u << 11);  // R3
-  if (system_buttons & 0x01) b |= (1u << 12); // PS        → Home
-  if (system_buttons & 0x02) b |= (1u << 13); // Touchpad  → Capture
-  if (system_buttons & 0x80) b |= (1u << 0);  // Right paddle → A
-  if (system_buttons & 0x40) b |= (1u << 10); // Left paddle  → L3
-  gp.buttons = b;
+  // Stadia buttons1: Y(Triangle), X(Square), B(Circle), A(Cross), LB, LT, RB, RT
+  uint8_t b1 = 0;
+  if (dpad_shapes  & 0x80) b1 |= (1u << 0);  // Triangle → Y (bit0)
+  if (dpad_shapes  & 0x10) b1 |= (1u << 1);  // Square   → X (bit1)
+  if (dpad_shapes  & 0x40) b1 |= (1u << 2);  // Circle   → B (bit2)
+  if (dpad_shapes  & 0x20) b1 |= (1u << 3);  // Cross    → A (bit3)
+  if (shoulders    & 0x01) b1 |= (1u << 4);  // L1       → LB (bit4)
+  if (shoulders    & 0x04) b1 |= (1u << 5);  // L2 dig   → LT (bit5)
+  if (shoulders    & 0x02) b1 |= (1u << 6);  // R1       → RB (bit6)
+  if (shoulders    & 0x08) b1 |= (1u << 7);  // R2 dig   → RT (bit7)
+
+  // Right Edge paddle → A (bit3 of buttons1)
+  if (system_buttons & 0x80) b1 |= (1u << 3);
+
+  // Stadia buttons2: Menu(Options), Guide(PS), Assistant, Capture(Touchpad), L3, R3, Back(Create)
+  uint8_t b2 = 0;
+  if (shoulders    & 0x20) b2 |= (1u << 0);  // Options   → Menu (bit0)
+  if (system_buttons & 0x01) b2 |= (1u << 1); // PS        → Guide (bit1)
+  // bit2 = Assistant: no DualSense mapping, leave 0
+  if (system_buttons & 0x02) b2 |= (1u << 3); // Touchpad  → Capture (bit3)
+  if (shoulders    & 0x40) b2 |= (1u << 4);  // L3 (bit4)
+  if (shoulders    & 0x80) b2 |= (1u << 5);  // R3 (bit5)
+  if (shoulders    & 0x10) b2 |= (1u << 6);  // Create    → Back (bit6)
+
+  // Left Edge paddle → L3 (bit4 of buttons2)
+  if (system_buttons & 0x40) b2 |= (1u << 4);
+
+  gp.buttons1 = b1;
+  gp.buttons2 = b2;
 
   const uint8_t hat = dpad_shapes & 0x0F;
   gp.hat = (hat > 7) ? 0x08 : hat;
 
-  if (len >= static_cast<uint16_t>(report_base + 4)) {
-    gp.left_x  = report[report_base + 0];
-    gp.left_y  = report[report_base + 1];
-    gp.right_x = report[report_base + 2];
-    gp.right_y = report[report_base + 3];
+  if (len >= static_cast<uint16_t>(report_base + 6)) {
+    // Sanitize: Stadia Logical Minimum = 1, so 0 → 1
+    auto sanitize = [](uint8_t v) -> uint8_t { return v == 0 ? 1 : v; };
+    gp.left_x  = sanitize(report[report_base + 0]);
+    gp.left_y  = sanitize(report[report_base + 1]);
+    gp.right_x = sanitize(report[report_base + 2]);
+    gp.right_y = sanitize(report[report_base + 3]);
+    gp.brake   = report[report_base + 4];  // L2 analog
+    gp.accel   = report[report_base + 5];  // R2 analog
   }
 
+  gp.consumer = 0;
   return gp;
 }
 // Layout mirrors struct dualsense_output_report from hid-playstation.c:
@@ -752,8 +769,10 @@ extern "C" void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
     if (mode::GetActive() == mode::Mode::kGamepad) {
       device_out::GamepadReport empty_gp = {};
       empty_gp.hat = 0x08;  // hat center (null state)
-      empty_gp.left_x = empty_gp.left_y = 128;
-      empty_gp.right_x = empty_gp.right_y = 128;
+      empty_gp.left_x = empty_gp.left_y = 0x80;
+      empty_gp.right_x = empty_gp.right_y = 0x80;
+      empty_gp.brake = empty_gp.accel = 0;
+      empty_gp.consumer = 0;
       device_out::SendGamepad(empty_gp);
     } else {
       device_out::KeyboardReport empty_keyboard = {};
