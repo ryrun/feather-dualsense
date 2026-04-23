@@ -592,31 +592,31 @@ void ProcessButtons(uint64_t next_buttons) {
 
 }  // namespace
 
-// Builds a Stadia-compatible gamepad report from a raw DualSense input report.
+// Builds a Nintendo Switch Pro Controller HID report from a DualSense input.
 //
-// Stadia button layout (SDL2 DB: 18d19400,Stadia Controller rev. A):
-//   bit  0 = A        (Cross)      a:b0
-//   bit  1 = B        (Circle)     b:b1
-//   bit  2 = X        (Square)     x:b2
-//   bit  3 = Y        (Triangle)   y:b3
-//   bit  4 = unused   (Assistant on real Stadia)
-//   bit  5 = Guide    (PS)         guide:b5
-//   bit  6 = Menu     (Options)    start:b6
-//   bit  7 = L3                    leftstick:b7
-//   bit  8 = R3                    rightstick:b8
-//   bit  9 = L1                    leftshoulder:b9
-//   bit 10 = R1                    rightshoulder:b10
-//   bit 11 = Capture  (Create)     back:b11 / misc1:b11
-//   bits 12-15 = unused
+// Button layout (SDL2 GameControllerDB for 057E:2009):
+//   bit  0 = A        (Cross)
+//   bit  1 = B        (Circle)
+//   bit  2 = X        (Square)
+//   bit  3 = Y        (Triangle)
+//   bit  4 = L        (L1)
+//   bit  5 = R        (R1)
+//   bit  6 = ZL       (L2 digital)
+//   bit  7 = ZR       (R2 digital)
+//   bit  8 = Minus    (Create)
+//   bit  9 = Plus     (Options)
+//   bit 10 = L3       (L3)
+//   bit 11 = R3       (R3)
+//   bit 12 = Home     (PS)
+//   bit 13 = Capture  (Touchpad click)
+//   bits 14-15 = padding (always 0)
 //
-// Triggers (analog axes only, no digital button bits):
-//   r2 = Z   → SDL2 axis 4 (righttrigger:a4)
-//   l2 = Rz  → SDL2 axis 5 (lefttrigger:a5)
-//
-// Edge paddles: right paddle → A (bit 0), left paddle → L3 (bit 7).
+// Edge paddles: right paddle → A (bit 0), left paddle → L3 (bit 10).
 static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
                                                  uint16_t len) {
   device_out::GamepadReport gp = {};
+  gp.hat = 0x08;  // center (null state: any value >= 8)
+
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
   const uint8_t button_base = report_base + 7;
 
@@ -633,28 +633,28 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   if (dpad_shapes  & 0x40) b |= (1u << 1);   // Circle    → B
   if (dpad_shapes  & 0x10) b |= (1u << 2);   // Square    → X
   if (dpad_shapes  & 0x80) b |= (1u << 3);   // Triangle  → Y
-  // bit 4 unused (Stadia Assistant)
-  if (system_buttons & 0x01) b |= (1u << 5);  // PS        → Guide
-  if (shoulders    & 0x20) b |= (1u << 6);   // Options   → Menu
-  if (shoulders    & 0x40) b |= (1u << 7);   // L3
-  if (shoulders    & 0x80) b |= (1u << 8);   // R3
-  if (shoulders    & 0x01) b |= (1u << 9);   // L1
-  if (shoulders    & 0x02) b |= (1u << 10);  // R1
-  if (shoulders    & 0x10) b |= (1u << 11);  // Create    → Capture
+  if (shoulders    & 0x01) b |= (1u << 4);   // L1        → L
+  if (shoulders    & 0x02) b |= (1u << 5);   // R1        → R
+  if (shoulders    & 0x04) b |= (1u << 6);   // L2 digital → ZL
+  if (shoulders    & 0x08) b |= (1u << 7);   // R2 digital → ZR
+  if (shoulders    & 0x10) b |= (1u << 8);   // Create    → Minus
+  if (shoulders    & 0x20) b |= (1u << 9);   // Options   → Plus
+  if (shoulders    & 0x40) b |= (1u << 10);  // L3
+  if (shoulders    & 0x80) b |= (1u << 11);  // R3
+  if (system_buttons & 0x01) b |= (1u << 12); // PS        → Home
+  if (system_buttons & 0x02) b |= (1u << 13); // Touchpad  → Capture
   if (system_buttons & 0x80) b |= (1u << 0);  // Right paddle → A
-  if (system_buttons & 0x40) b |= (1u << 7);  // Left paddle  → L3
+  if (system_buttons & 0x40) b |= (1u << 10); // Left paddle  → L3
   gp.buttons = b;
 
   const uint8_t hat = dpad_shapes & 0x0F;
-  gp.hat = (hat > 7) ? 0x0F : hat;
+  gp.hat = (hat > 7) ? 0x08 : hat;
 
-  if (len >= static_cast<uint16_t>(report_base + 6)) {
+  if (len >= static_cast<uint16_t>(report_base + 4)) {
     gp.left_x  = report[report_base + 0];
     gp.left_y  = report[report_base + 1];
     gp.right_x = report[report_base + 2];
     gp.right_y = report[report_base + 3];
-    gp.r2 = report[report_base + 5];  // R2 = Z   = SDL2 axis 4
-    gp.l2 = report[report_base + 4];  // L2 = Rz  = SDL2 axis 5
   }
 
   return gp;
@@ -751,6 +751,9 @@ extern "C" void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
       g_controller.instance == instance) {
     if (mode::GetActive() == mode::Mode::kGamepad) {
       device_out::GamepadReport empty_gp = {};
+      empty_gp.hat = 0x08;  // hat center (null state)
+      empty_gp.left_x = empty_gp.left_y = 128;
+      empty_gp.right_x = empty_gp.right_y = 128;
       device_out::SendGamepad(empty_gp);
     } else {
       device_out::KeyboardReport empty_keyboard = {};

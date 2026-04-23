@@ -26,11 +26,10 @@ enum EndpointAddressKbm : uint8_t {
 
 constexpr uint16_t kUsbVid    = 0xCafe;
 constexpr uint16_t kUsbPidKbm = 0x4023;
-// Generic gamepad: own VID/PID so macOS uses our HID descriptor directly
-// without applying any hardcoded controller-specific mapping.
-constexpr uint16_t kUsbVidGp  = 0x2E8A;  // Raspberry Pi Foundation
-constexpr uint16_t kUsbPidGp  = 0x4024;
-constexpr uint16_t kUsbBcd    = 0x0100;
+// Nintendo Switch Pro Controller: native HID, macOS reads descriptor directly.
+constexpr uint16_t kUsbVidGp  = 0x057E;  // Nintendo Co., Ltd.
+constexpr uint16_t kUsbPidGp  = 0x2009;  // Pro Controller
+constexpr uint16_t kUsbBcd    = 0x0200;
 
 uint8_t const kDescHidKeyboard[] = {
     0x05, 0x01,                                  // Usage Page (Generic Desktop)
@@ -125,52 +124,51 @@ enum EndpointAddressGp : uint8_t {
   kEpnGamepad = 0x81,
 };
 
-// Stadia-compatible gamepad:
-//   16 buttons (2 bytes), hat switch (4 bits + 4 pad = 1 byte),
-//   LX/LY/RX/RY/R2/L2 (6 × uint8 = 6 bytes, 0-255)
-//   = 9 bytes payload.
+// Nintendo Switch Pro Controller USB HID descriptor.
+// No Report ID. Report layout (7 bytes):
+//   buttons (uint16): bits 0-13 active, bits 14-15 padding
+//   hat     (uint8):  bits 0-3 = hat (0=N…7=NW, >=8=center), bits 4-7 = 0
+//   left_x, left_y, right_x, right_y (uint8, 0-255, 128=center)
 uint8_t const kDescHidGamepad[] = {
     0x05, 0x01,                         // Usage Page (Generic Desktop)
     0x09, 0x05,                         // Usage (Gamepad)
     0xA1, 0x01,                         // Collection (Application)
-    0x85, device_out::kReportIdGamepad, // Report ID
-    // 16 buttons (no padding needed — 16 bits fill exactly 2 bytes)
-    0x05, 0x09,                         // Usage Page (Button)
-    0x19, 0x01,                         // Usage Minimum (1)
-    0x29, 0x10,                         // Usage Maximum (16)
+    // 14 buttons
     0x15, 0x00,                         // Logical Minimum (0)
     0x25, 0x01,                         // Logical Maximum (1)
-    0x75, 0x01,                         // Report Size (1)
-    0x95, 0x10,                         // Report Count (16)
-    0x81, 0x02,                         // Input (Data, Variable, Absolute)
-    // Hat switch
-    0x05, 0x01,                         // Usage Page (Generic Desktop)
-    0x09, 0x39,                         // Usage (Hat Switch)
-    0x15, 0x00,                         // Logical Minimum (0)
-    0x25, 0x07,                         // Logical Maximum (7)
     0x35, 0x00,                         // Physical Minimum (0)
+    0x45, 0x01,                         // Physical Maximum (1)
+    0x75, 0x01,                         // Report Size (1)
+    0x95, 0x0E,                         // Report Count (14)
+    0x05, 0x09,                         // Usage Page (Button)
+    0x19, 0x01,                         // Usage Minimum (1)
+    0x29, 0x0E,                         // Usage Maximum (14)
+    0x81, 0x02,                         // Input (Data, Variable, Absolute)
+    // 2 padding bits
+    0x95, 0x02,                         // Report Count (2)
+    0x81, 0x01,                         // Input (Constant)
+    // Hat switch (4 bits, null state = values >= 8)
+    0x05, 0x01,                         // Usage Page (Generic Desktop)
+    0x25, 0x07,                         // Logical Maximum (7)
     0x46, 0x3B, 0x01,                   // Physical Maximum (315)
-    0x65, 0x14,                         // Unit (Rotation, Degrees)
     0x75, 0x04,                         // Report Size (4)
     0x95, 0x01,                         // Report Count (1)
+    0x65, 0x14,                         // Unit (Degrees)
+    0x09, 0x39,                         // Usage (Hat Switch)
     0x81, 0x42,                         // Input (Data, Variable, Absolute, Null State)
     // 4 padding bits
     0x65, 0x00,                         // Unit (None)
-    0x75, 0x04,                         // Report Size (4)
     0x95, 0x01,                         // Report Count (1)
-    0x81, 0x03,                         // Input (Constant)
-    // LX, LY, RX, RY, R2 (Z = SDL2 axis 4), L2 (Rz = SDL2 axis 5) — all uint8 0-255
-    0x05, 0x01,                         // Usage Page (Generic Desktop)
+    0x81, 0x01,                         // Input (Constant)
+    // LX (X), LY (Y), RX (Z), RY (Rz) — all uint8 0-255
+    0x26, 0xFF, 0x00,                   // Logical Maximum (255)
+    0x46, 0xFF, 0x00,                   // Physical Maximum (255)
     0x09, 0x30,                         // Usage (X)   — Left X
     0x09, 0x31,                         // Usage (Y)   — Left Y
-    0x09, 0x33,                         // Usage (Rx)  — Right X
-    0x09, 0x34,                         // Usage (Ry)  — Right Y
-    0x09, 0x32,                         // Usage (Z)   — R2, SDL2 axis 4
-    0x09, 0x35,                         // Usage (Rz)  — L2, SDL2 axis 5
-    0x15, 0x00,                         // Logical Minimum (0)
-    0x26, 0xFF, 0x00,                   // Logical Maximum (255)
+    0x09, 0x32,                         // Usage (Z)   — Right X
+    0x09, 0x35,                         // Usage (Rz)  — Right Y
     0x75, 0x08,                         // Report Size (8)
-    0x95, 0x06,                         // Report Count (6)
+    0x95, 0x04,                         // Report Count (4)
     0x81, 0x02,                         // Input (Data, Variable, Absolute)
     0xC0,                               // End Collection
 };
@@ -210,8 +208,8 @@ char const* kStringDescriptorsKbm[] = {
 
 char const* kStringDescriptorsGamepad[] = {
     nullptr,
-    "feather-dualsense",
-    "DualSense Gamepad",
+    "Nintendo Co., Ltd.",
+    "Pro Controller",
 };
 
 uint16_t g_string_desc[32];
