@@ -80,12 +80,12 @@ namespace gp {
   constexpr uint16_t kLB      = 4;   // buttons1 bit4  L1
   constexpr uint16_t kLT      = 5;   // buttons1 bit5  L2 digital
   constexpr uint16_t kRB      = 6;   // buttons1 bit6  R1
-  constexpr uint16_t kRT      = 7;   // buttons1 bit7  R2 digital
+  constexpr uint16_t kRT      = 7;   // buttons1 bit7  R2 digital  (position unverified — currently maps to R3 on macOS)
   constexpr uint16_t kMenu    = 8;   // buttons2 bit0  Options/Menu
   constexpr uint16_t kGuide   = 9;   // buttons2 bit1  PS/Guide
   constexpr uint16_t kCapture = 10;  // buttons2 bit2  Touchpad/Capture
   constexpr uint16_t kL3      = 0;   // buttons1 bit0  L3
-  constexpr uint16_t kR3      = 1;   // buttons1 bit1  R3
+  constexpr uint16_t kR3      = 7;   // buttons1 bit7  R3            (confirmed via R2 trigger test)
   constexpr uint16_t kBack    = 2;   // buttons1 bit2  Create/Back
 }  // namespace gp
 
