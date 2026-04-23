@@ -84,7 +84,7 @@ namespace gp {
   constexpr uint16_t kMenu    = 8;   // buttons2 bit0  Options/Menu
   constexpr uint16_t kGuide   = 9;   // buttons2 bit1  PS/Guide
   constexpr uint16_t kCapture = 10;  // buttons2 bit2  Touchpad/Capture
-  constexpr uint16_t kL3      = 6;   // buttons1 bit6  L3  (hypothesis: adjacent to R3=bit7)
+  constexpr uint16_t kL3      = 8;   // buttons2 bit0  L3  (testing)
   constexpr uint16_t kR3      = 7;   // buttons1 bit7  R3            (confirmed via R2 trigger test)
   constexpr uint16_t kBack    = 2;   // buttons1 bit2  Create/Back
 }  // namespace gp
