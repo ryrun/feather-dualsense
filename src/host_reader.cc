@@ -1,6 +1,5 @@
 #include "host_reader.h"
 
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -344,11 +343,17 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
     return false;
   }
 
+  // Apply axis scale factors in integer. X_FACTOR = 1.0 → no-op.
+  // Y_FACTOR converted to Q16: (int64 * Q16_factor) >> 16 avoids software float.
+  constexpr int32_t kYFactorQ16 =
+      static_cast<int32_t>(GYRO_MOUSE_Y_FACTOR * 65536.0f);
+
   *mouse_x = ConsumeMouseDelta(
-      static_cast<int32_t>(ShapeGyroDeltaQ16(corrected_x) * GYRO_MOUSE_X_FACTOR),
+      ShapeGyroDeltaQ16(corrected_x),
       &g_controller.gyro_mouse_x_remainder_q16);
   *mouse_y = ConsumeMouseDelta(
-      static_cast<int32_t>(ShapeGyroDeltaQ16(corrected_y) * GYRO_MOUSE_Y_FACTOR),
+      static_cast<int32_t>(
+          (static_cast<int64_t>(ShapeGyroDeltaQ16(corrected_y)) * kYFactorQ16) >> 16),
       &g_controller.gyro_mouse_y_remainder_q16);
   return *mouse_x != 0 || *mouse_y != 0;
 #else
@@ -368,39 +373,28 @@ uint64_t ParseLeftStickButtons(uint8_t const* report, uint16_t len) {
 
   const int sx = static_cast<int>(report[report_base + 0]) - 128;
   const int sy = static_cast<int>(report[report_base + 1]) - 128;
-  const float radius_raw = fminf(sqrtf((float)(sx * sx + sy * sy)), 127.0f);
-  const float radius = (radius_raw < 26.0f)
-                           ? 0.0f
-                           : (radius_raw - 26.0f) * 127.0f / 101.0f;
+  const int r2 = sx * sx + sy * sy;
 
-  if (radius <= 6.35f) {
+  // Dead zone: normalized radius <= 6.35 → raw radius <= ~31 → r² <= 961.
+  if (r2 <= 961) {
     return 0;
   }
 
   uint64_t buttons = 0;
 
-  // Ring buttons.
-  if (radius < 95.25f) {
-    buttons |= mapping::ButtonMask(mapping::Button::kInnerRing);
-  } else {
-    buttons |= mapping::ButtonMask(mapping::Button::kOuterRing);
-  }
+  // Inner ring: raw radius < ~102 → r² < 10362. Outer ring otherwise.
+  buttons |= mapping::ButtonMask(
+      r2 < 10362 ? mapping::Button::kInnerRing : mapping::Button::kOuterRing);
 
-  // Directional buttons: angle 0°=N, 90°=E, ±180°=S, -90°=W.
-  // 4DIR overlap sectors (135° each, 45° overlap → diagonals press two keys).
-  const float angle = atan2f((float)sx, -(float)sy) * (180.0f / 3.14159265f);
-  if (fabsf(angle) <= 67.5f) {
-    buttons |= mapping::ButtonMask(mapping::Button::kLStickN);
-  }
-  if (angle > 22.5f && angle < 157.5f) {
-    buttons |= mapping::ButtonMask(mapping::Button::kLStickE);
-  }
-  if (fabsf(angle) >= 112.5f) {
-    buttons |= mapping::ButtonMask(mapping::Button::kLStickS);
-  }
-  if (angle > -157.5f && angle < -22.5f) {
-    buttons |= mapping::ButtonMask(mapping::Button::kLStickW);
-  }
+  // 4-way WASD, each sector 135° wide (45° overlap into diagonals).
+  // Boundaries at ±22.5° and ±67.5° from each axis.
+  // tan(67.5°) ≈ 2.414 → approx 5/2. Condition: |minor| * 2 ≤ |major| * 5.
+  const int ax = sx < 0 ? -sx : sx;
+  const int ay = sy < 0 ? -sy : sy;
+  if (sy < 0 && ax * 2 <= ay * 5) buttons |= mapping::ButtonMask(mapping::Button::kLStickN);
+  if (sy > 0 && ax * 2 <= ay * 5) buttons |= mapping::ButtonMask(mapping::Button::kLStickS);
+  if (sx > 0 && ay * 2 <= ax * 5) buttons |= mapping::ButtonMask(mapping::Button::kLStickE);
+  if (sx < 0 && ay * 2 <= ax * 5) buttons |= mapping::ButtonMask(mapping::Button::kLStickW);
 
   return buttons;
 }
@@ -413,27 +407,36 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
 
   const int sx = static_cast<int>(report[report_base + 2]) - 128;
   const int sy = static_cast<int>(report[report_base + 3]) - 128;
-  const float radius_raw = fminf(sqrtf((float)(sx * sx + sy * sy)), 127.0f);
-  const float radius = (radius_raw < 26.0f)
-                           ? 0.0f
-                           : (radius_raw - 26.0f) * 127.0f / 101.0f;
 
-  if (radius < RSTICK_NUMPAD_THRESHOLD) {
+  // Active threshold: corresponds to normalized radius >= RSTICK_NUMPAD_THRESHOLD.
+  // raw_thresh = 26 + T * 101/127. Squared to avoid sqrt.
+  constexpr int kRawThresh = 26 + RSTICK_NUMPAD_THRESHOLD * 101 / 127;
+  if (sx * sx + sy * sy < kRawThresh * kRawThresh) {
     return 0;
   }
 
-  // Exclusive 8-way sectors, 45° each. Angle: 0°=N, 90°=E, ±180°=S, -90°=W.
-  const float angle = atan2f((float)sx, -(float)sy) * (180.0f / 3.14159265f);
+  // Exclusive 8-way sector detection using integer comparisons.
+  // tan(22.5°) ≈ 0.414 ≈ 2/5. tan(67.5°) ≈ 2.414 ≈ 5/2.
+  // "Mostly X": |sx|/|sy| > 5/2 → cardinal E/W.
+  // "Mostly Y": |sy|/|sx| > 5/2 → cardinal N/S.
+  // Otherwise: diagonal.
+  const int ax = sx < 0 ? -sx : sx;
+  const int ay = sy < 0 ? -sy : sy;
 
-  // Each sector spans [-22.5°, +22.5°] around its centre direction.
-  if (angle >= -22.5f  && angle <  22.5f)  return mapping::ButtonMask(mapping::Button::kRStick4);  // N → 4
-  if (angle >=  22.5f  && angle <  67.5f)  return mapping::ButtonMask(mapping::Button::kRStick7);  // NE → 7
-  if (angle >=  67.5f  && angle < 112.5f)  return mapping::ButtonMask(mapping::Button::kRStick3);  // E → 3
-  if (angle >= 112.5f  && angle < 157.5f)  return mapping::ButtonMask(mapping::Button::kRStick6);  // SE → 6
-  if (angle >= -67.5f  && angle < -22.5f)  return mapping::ButtonMask(mapping::Button::kRStick8);  // NW → 8
-  if (angle >= -112.5f && angle < -67.5f)  return mapping::ButtonMask(mapping::Button::kRStick1);  // W → 1
-  if (angle >= -157.5f && angle < -112.5f) return mapping::ButtonMask(mapping::Button::kRStick5);  // SW → 5
-  /* |angle| >= 157.5° → S */               return mapping::ButtonMask(mapping::Button::kRStick2);  // S → 2
+  if (ax * 2 > ay * 5) {
+    return mapping::ButtonMask(sx > 0 ? mapping::Button::kRStick3   // E
+                                      : mapping::Button::kRStick1); // W
+  }
+  if (ay * 2 > ax * 5) {
+    return mapping::ButtonMask(sy < 0 ? mapping::Button::kRStick4   // N
+                                      : mapping::Button::kRStick2); // S
+  }
+  if (sx > 0) {
+    return mapping::ButtonMask(sy < 0 ? mapping::Button::kRStick7   // NE
+                                      : mapping::Button::kRStick6); // SE
+  }
+  return mapping::ButtonMask(sy > 0 ? mapping::Button::kRStick5     // SW
+                                    : mapping::Button::kRStick8);   // NW
 }
 
 void ParseTouchpadClick(uint8_t const* report, uint16_t len) {
@@ -670,7 +673,8 @@ static bool CheckModeCombo(uint64_t buttons) {
 //
 // Edge paddles: right paddle → A (bit 0), left paddle → L3 (bit 10).
 static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
-                                                 uint16_t len) {
+                                                 uint16_t len,
+                                                 uint64_t button_mask) {
   device_out::GamepadReport gp = {};
   gp.hat = 0x08;  // hat center (null state)
   gp.left_x = gp.left_y = gp.right_x = gp.right_y = 0x80;
@@ -686,8 +690,7 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   const uint8_t hat = report[button_base] & 0x0F;
   gp.hat = (hat > 7) ? 0x08 : hat;
 
-  // Digital buttons via mapping table
-  const uint64_t button_mask = ParseDualSenseButtons(report, len);
+  // Digital buttons via mapping table (button_mask passed in, no re-parse needed)
   const mapping::Action* actions = g_controller.gamepad_actions;
   if (actions) {
     for (size_t i = 0; i < mapping::kButtonCount; ++i) {
@@ -845,7 +848,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   const bool combo_armed = CheckModeCombo(raw_buttons);
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
-    device_out::SendGamepad(ParseForGamepad(report, len));
+    device_out::SendGamepad(ParseForGamepad(report, len, raw_buttons));
     tuh_hid_receive_report(dev_addr, instance);
     return;
   }
