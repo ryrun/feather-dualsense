@@ -16,7 +16,9 @@ Fetch pico-sdk in one of two ways:
 git submodule update --init --recursive
 ```
 
-2) Or let CMake fetch automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`) if `./pico-sdk` is not present.
+2) Or let CMake clone pico-sdk automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`) if `./pico-sdk` is not present.
+
+Automatic clone requires network access to GitHub and clones pico-sdk with `--recurse-submodules` so required dependencies are available.
 
 Note: this repository ships a custom board definition for `PICO_BOARD=feather_host` under `boards/feather_host.h` and `boards/feather_host.cmake`.
 

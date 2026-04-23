@@ -18,6 +18,13 @@ jobs:
           sudo apt update
           sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi srecord cmake build-essential
 
+
+      - name: Ensure pico-sdk is available
+        run: |
+          if [ ! -f pico-sdk/external/pico_sdk_import.cmake ]; then
+            git clone --depth 1 --recurse-submodules https://github.com/raspberrypi/pico-sdk.git pico-sdk
+          fi
+
       - name: Configure
         run: |
           mkdir -p build

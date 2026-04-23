@@ -1,15 +1,11 @@
-# Pico SDK importer with fallback fetch support.
-# Priority:
-# 1) PICO_SDK_PATH cache/environment
-# 2) ./pico-sdk submodule
-# 3) Git clone into build cache (if PICO_SDK_FETCH_FROM_GIT is ON)
+# Pico SDK importer with deterministic fallback download support.
 
 if (DEFINED ENV{PICO_SDK_PATH} AND (NOT PICO_SDK_PATH))
   set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 endif ()
 
 set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/pico-sdk" CACHE PATH "Path to the Pico SDK")
-option(PICO_SDK_FETCH_FROM_GIT "Fetch pico-sdk if local path is missing" ON)
+option(PICO_SDK_FETCH_FROM_GIT "Clone pico-sdk if local path is missing" ON)
 set(PICO_SDK_FETCH_FROM_GIT_TAG "master" CACHE STRING "Git tag/branch/commit for pico-sdk")
 
 # Provide custom board definitions for PICO_BOARD=feather_host.
@@ -24,19 +20,33 @@ endif ()
 if (NOT PICO_SDK_FETCH_FROM_GIT)
   message(FATAL_ERROR
     "Pico SDK not found. Clone with submodules or set PICO_SDK_PATH.\n"
-    "  git submodule update --init --recursive")
+    "  git clone --depth 1 --recurse-submodules https://github.com/raspberrypi/pico-sdk.git")
 endif ()
 
-include(FetchContent)
 set(PICO_SDK_FETCH_DIR "${CMAKE_BINARY_DIR}/_deps/pico-sdk-src")
-message(STATUS "Fetching pico-sdk (${PICO_SDK_FETCH_FROM_GIT_TAG})")
-FetchContent_Declare(
-  pico_sdk_fetch
-  GIT_REPOSITORY https://github.com/raspberrypi/pico-sdk.git
-  GIT_TAG ${PICO_SDK_FETCH_FROM_GIT_TAG}
-  SOURCE_DIR "${PICO_SDK_FETCH_DIR}"
-)
-FetchContent_MakeAvailable(pico_sdk_fetch)
+message(STATUS "Cloning pico-sdk (${PICO_SDK_FETCH_FROM_GIT_TAG}) into ${PICO_SDK_FETCH_DIR}")
+
+if (EXISTS "${PICO_SDK_FETCH_DIR}" AND NOT EXISTS "${PICO_SDK_FETCH_DIR}/external/pico_sdk_import.cmake")
+  file(REMOVE_RECURSE "${PICO_SDK_FETCH_DIR}")
+endif ()
+
+if (NOT EXISTS "${PICO_SDK_FETCH_DIR}/external/pico_sdk_import.cmake")
+  execute_process(
+    COMMAND git clone --depth 1 --branch ${PICO_SDK_FETCH_FROM_GIT_TAG} --recurse-submodules
+            https://github.com/raspberrypi/pico-sdk.git ${PICO_SDK_FETCH_DIR}
+    RESULT_VARIABLE clone_result
+    OUTPUT_VARIABLE clone_stdout
+    ERROR_VARIABLE clone_stderr
+  )
+
+  if (NOT clone_result EQUAL 0)
+    message(FATAL_ERROR
+      "Failed to clone pico-sdk from GitHub.\n"
+      "stdout:\n${clone_stdout}\n"
+      "stderr:\n${clone_stderr}\n"
+      "You can also provide PICO_SDK_PATH or initialize pico-sdk as a submodule.")
+  endif ()
+endif ()
 
 set(PICO_SDK_PATH "${PICO_SDK_FETCH_DIR}" CACHE PATH "Path to the Pico SDK" FORCE)
 include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")

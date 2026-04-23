@@ -74,4 +74,4 @@ lsusb | grep -i sony
 Implementation patterns were inspired by TinyUSB host/device HID examples and jfedor2/hid-remapper structure ideas, but this codebase is a minimal re-implementation tailored to this project and does not copy large external files verbatim.
 
 
-If `./pico-sdk` is absent, CMake can fetch pico-sdk automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`).
+If `./pico-sdk` is absent, CMake can clone pico-sdk automatically (default `PICO_SDK_FETCH_FROM_GIT=ON`) using `--recurse-submodules` to pull required dependencies (TinyUSB and related components).
