@@ -77,10 +77,10 @@ namespace gp {
   constexpr uint16_t kB       = 13;  // buttons2 bit5  Circle    (usage 0x02, derived)
   constexpr uint16_t kA       = 14;  // buttons2 bit6  Cross     (usage 0x01, derived)
   // Shoulder/trigger and system buttons — positions still unverified, need testing
-  constexpr uint16_t kLB      = 4;   // buttons1 bit4  L1
-  constexpr uint16_t kLT      = 5;   // buttons1 bit5  L2 digital
-  constexpr uint16_t kRB      = 6;   // buttons1 bit6  R1
-  constexpr uint16_t kRT      = 7;   // buttons1 bit7  R2 digital  (position unverified — currently maps to R3 on macOS)
+  constexpr uint16_t kLB      = 0;   // buttons1 bit0  L1  (testing)
+  constexpr uint16_t kRB      = 1;   // buttons1 bit1  R1  (testing)
+  constexpr uint16_t kLT      = 2;   // buttons1 bit2  L2 digital  (testing)
+  constexpr uint16_t kRT      = 3;   // buttons1 bit3  R2 digital  (testing)
   constexpr uint16_t kMenu    = 8;   // buttons2 bit0  Options/Menu
   constexpr uint16_t kGuide   = 9;   // buttons2 bit1  PS/Guide
   constexpr uint16_t kCapture = 10;  // buttons2 bit2  Touchpad/Capture
