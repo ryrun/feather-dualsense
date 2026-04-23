@@ -24,10 +24,16 @@ jobs:
         run: |
           pkg-config --modversion libusb-1.0
 
+      - name: Ensure pico-sdk is available
+        run: |
+          if [ ! -f pico-sdk/external/pico_sdk_import.cmake ]; then
+            git clone --depth 1 --recurse-submodules https://github.com/raspberrypi/pico-sdk.git pico-sdk
+          fi
+
       - name: Build standalone picotool with USB support
         run: |
           git clone --depth 1 https://github.com/raspberrypi/picotool.git /tmp/picotool
-          cmake -S /tmp/picotool -B /tmp/picotool/build -DCMAKE_BUILD_TYPE=Release -DPICOTOOL_NO_LIBUSB=0
+          cmake -S /tmp/picotool -B /tmp/picotool/build -DCMAKE_BUILD_TYPE=Release -DPICOTOOL_NO_LIBUSB=0 -DPICO_SDK_PATH=${GITHUB_WORKSPACE}/pico-sdk
           cmake --build /tmp/picotool/build -j"$(nproc)"
 
       - name: Verify standalone picotool USB support
@@ -35,12 +41,6 @@ jobs:
           if /tmp/picotool/build/picotool 2>&1 | grep -q "compiled without USB support"; then
             echo "Standalone picotool was built without USB support"
             exit 1
-          fi
-
-      - name: Ensure pico-sdk is available
-        run: |
-          if [ ! -f pico-sdk/external/pico_sdk_import.cmake ]; then
-            git clone --depth 1 --recurse-submodules https://github.com/raspberrypi/pico-sdk.git pico-sdk
           fi
 
       - name: Configure

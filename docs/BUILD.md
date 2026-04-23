@@ -105,6 +105,8 @@ Default is `18` for Feather RP2040 USB Host.
 After build, verify picotool was not built in no-USB mode:
 
 ```bash
+PICO_SDK_PATH=$PWD/pico-sdk cmake -S /tmp/picotool -B /tmp/picotool/build -DCMAKE_BUILD_TYPE=Release -DPICOTOOL_NO_LIBUSB=0
+cmake --build /tmp/picotool/build -j"$(nproc)"
 /tmp/picotool/build/picotool 2>&1 | grep -q "compiled without USB support" && echo "NO USB" || echo "USB OK"
 ```
 
