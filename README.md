@@ -4,7 +4,7 @@ Lean RP2040 firmware for **Adafruit Feather 2024 USB HOST A** that accepts only 
 
 ## Goals
 
-- Single-board target: `PICO_BOARD=feather_host`.
+- Single-board target: `PICO_BOARD=feather_host` (board definition provided in `boards/feather_host.*`).
 - Strict compile-time whitelist of supported controllers.
 - No runtime config UI, no web UI, and no Python configuration tools in this repository.
 - Low-latency hot path with static memory and bitmask parsing.
