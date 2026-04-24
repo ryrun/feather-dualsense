@@ -12,6 +12,13 @@
 #include "pico/stdlib.h"
 #include "tusb.h"
 
+// Minimal PIO-USB endpoint access for interval patching.
+// Full pio_usb_ll.h cannot be included in C++ (duplicate inline / enum issues).
+extern "C" {
+#include "usb_definitions.h"
+extern endpoint_t pio_usb_ep_pool[32];  // PIO_USB_EP_POOL_CNT = 32
+}
+
 namespace {
 
 constexpr uint kStatusLedPin = PICO_DEFAULT_LED_PIN;
@@ -750,6 +757,17 @@ extern "C" void tuh_hid_mount_cb(uint8_t dev_addr,
   } else {
     SendDualSenseLightbar(dev_addr, instance, 0, 0, 255);    // blue
   }
+  // Force the DualSense interrupt IN endpoint to 1ms interval (1000 Hz).
+  for (int i = 0; i < 32; i++) {  // 32 = PIO_USB_EP_POOL_CNT
+    endpoint_t *ep = &pio_usb_ep_pool[i];
+    if (ep->dev_addr == dev_addr &&
+        (ep->ep_num & EP_IN) &&
+        (ep->attr & 0x03) == EP_ATTR_INTERRUPT) {
+      ep->interval = 1;
+      ep->interval_counter = 0;
+    }
+  }
+
   tuh_hid_receive_report(dev_addr, instance);
 }
 
