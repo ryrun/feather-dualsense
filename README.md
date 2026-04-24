@@ -117,7 +117,9 @@ Gyro movement is mapped to relative mouse X/Y while at least one finger touches 
 
 **Soft suppression** — Instead of a hard deadzone, small residual values after bias subtraction are shaped with a quadratic fade-in (`output = v × |v| / threshold`, threshold = 15 raw units). Micro-movements are preserved rather than cut off.
 
-Base sensitivity: `GYRO_MOUSE_SENSITIVITY_Q16 = -682` (~−0.003 per raw unit).  
+**1000 Hz polling** — On mount, the firmware patches the DualSense interrupt IN endpoint interval to 1 ms (overriding the 4 ms default). The sensitivity constant is tuned accordingly.
+
+Base sensitivity: `GYRO_MOUSE_SENSITIVITY_Q16 = -171` (~−0.0026 per raw unit at 1000 Hz).  
 Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch

@@ -10,7 +10,8 @@
 
 #define GYRO_MOUSE_ENABLE 1
 // Sensitivity in Q16 fixed-point. Negative = invert direction.
-#define GYRO_MOUSE_SENSITIVITY_Q16 (-682)
+// Tuned for 1000 Hz USB polling (endpoint interval forced to 1 ms in tuh_hid_mount_cb).
+#define GYRO_MOUSE_SENSITIVITY_Q16 (-171)
 // Y axis scale factor relative to X (applied as integer Q16 at compile time).
 #define GYRO_MOUSE_Y_FACTOR 0.7f
 
