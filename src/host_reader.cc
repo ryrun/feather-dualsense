@@ -610,10 +610,11 @@ uint64_t ParseDualSenseButtons(uint8_t const* report, uint16_t len) {
   return buttons;
 }
 
-void ProcessButtons(uint64_t next_buttons) {
+// Returns true if mouse button state changed (caller is responsible for sending).
+bool ProcessButtons(uint64_t next_buttons) {
   const uint64_t changed = g_controller.buttons ^ next_buttons;
   if (changed == 0) {
-    return;
+    return false;
   }
 
   bool keyboard_changed = false;
@@ -633,13 +634,7 @@ void ProcessButtons(uint64_t next_buttons) {
   if (keyboard_changed) {
     device_out::SendKeyboard(g_controller.keyboard);
   }
-  if (mouse_changed) {
-    g_controller.mouse.x = 0;
-    g_controller.mouse.y = 0;
-    g_controller.mouse.wheel = 0;
-    g_controller.mouse.pan = 0;
-    device_out::SendMouse(g_controller.mouse);
-  }
+  return mouse_changed;
 }
 
 }  // namespace
@@ -836,26 +831,34 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
     return;
   }
 
-  ProcessButtons(raw_buttons |
+  bool mouse_send = ProcessButtons(raw_buttons |
                  ParseLeftStickButtons(report, len)  |
                  ParseRightStickButtons(report, len));
   ParseTouchpadClick(report, len);
+
+  // Zero position/scroll up front; scroll or gyro will fill in what's needed.
+  g_controller.mouse.x = 0;
+  g_controller.mouse.y = 0;
+  g_controller.mouse.wheel = 0;
+  g_controller.mouse.pan = 0;
+
   int8_t scroll = 0;
   if (ParseTouchScroll(report, len, &scroll)) {
-    g_controller.mouse.x = 0;
-    g_controller.mouse.y = 0;
+    // Scroll and gyro are mutually exclusive; scroll takes priority.
     g_controller.mouse.wheel = scroll;
-    g_controller.mouse.pan = 0;
-    device_out::SendMouse(g_controller.mouse);
-    g_controller.mouse.wheel = 0;
+    mouse_send = true;
+  } else {
+    int16_t mouse_x = 0;
+    int16_t mouse_y = 0;
+    if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
+      g_controller.mouse.x = mouse_x;
+      g_controller.mouse.y = mouse_y;
+      mouse_send = true;
+    }
   }
-  int16_t mouse_x = 0;
-  int16_t mouse_y = 0;
-  if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
-    g_controller.mouse.x = mouse_x;
-    g_controller.mouse.y = mouse_y;
-    g_controller.mouse.wheel = 0;
-    g_controller.mouse.pan = 0;
+
+  // Single consolidated mouse send per callback — avoids double-send at 1000 Hz.
+  if (mouse_send) {
     device_out::SendMouse(g_controller.mouse);
   }
   tuh_hid_receive_report(dev_addr, instance);
