@@ -60,7 +60,9 @@ The Feather enumerates as a single HID gamepad that mimics the Google Stadia Con
 | Create / Share | Tab |
 | L3 | `J` |
 | R3 | `0` |
-| Touchpad click | *(mode switch combo only)* |
+| Touchpad click (left third) | `M` |
+| Touchpad click (middle third) | Middle mouse button |
+| Touchpad click (right third) | `N` |
 | PS button | Enter |
 | Mute | F12 |
 | D-Pad Up | Arrow Up |
@@ -130,6 +132,15 @@ Press the **BOOT** button on the Feather board to toggle between KBM and Gamepad
 
 Install the ARM toolchain, CMake, Make, the Pico SDK, and Pico-PIO-USB. Either set `PICO_SDK_PATH` or check out `pico-sdk` at the repository root. Pico-PIO-USB must be available at `pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB`.
 
+**macOS:** Homebrew's `arm-none-eabi-gcc` does not include `nosys.specs`. Install the official ARM toolchain instead:
+
+```sh
+brew install --cask gcc-arm-embedded
+sudo installer -pkg /opt/homebrew/Caskroom/gcc-arm-embedded/15.2.rel1/arm-gnu-toolchain-15.2.rel1-darwin-arm64-arm-none-eabi.pkg -target /
+export PATH="/Applications/ArmGNUToolchain/15.2.rel1/arm-none-eabi/bin:$PATH"
+# Add the export to ~/.zshrc to make it permanent
+```
+
 ```sh
 git submodule update --init --recursive
 mkdir -p pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi
@@ -137,8 +148,9 @@ git clone --depth 1 https://github.com/sekigon-gonnoc/Pico-PIO-USB.git \
   pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB
 mkdir build
 cd build
-PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)
+PICO_BOARD=feather_host cmake ..
+make -j$(nproc)   # Linux
+make -j$(sysctl -n hw.logicalcpu)   # macOS
 ```
 
 The flashable artifact is:

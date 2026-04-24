@@ -43,28 +43,30 @@ PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 ```
 
+LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
+
 ## macOS Local Toolchain
 
-Homebrew's `arm-none-eabi-gcc` formula may not include `nosys.specs`. If that happens, use Arm's full GNU toolchain and point CMake at it:
+Homebrew's `arm-none-eabi-gcc` formula does not include `nosys.specs` or the ARM newlib specs. Install the official ARM GNU Toolchain via the Homebrew cask and run the pkg installer:
 
 ```sh
-mkdir -p .toolchains
-curl -L --fail -o .toolchains/arm-gnu-toolchain.pkg \
-  https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-darwin-arm64-arm-none-eabi.pkg
-pkgutil --expand-full .toolchains/arm-gnu-toolchain.pkg .toolchains/arm-expanded
-
-rm -rf build
-mkdir build
-cd build
-PICO_BOARD=feather_host cmake \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DFEATHER_REMAPPER_ENABLE_LTO=OFF \
-  -DPICO_TOOLCHAIN_PATH="$PWD/../.toolchains/arm-expanded/Payload" \
-  ..
-make -j$(sysctl -n hw.ncpu)
+brew install --cask gcc-arm-embedded
+sudo installer -pkg /opt/homebrew/Caskroom/gcc-arm-embedded/15.2.rel1/arm-gnu-toolchain-15.2.rel1-darwin-arm64-arm-none-eabi.pkg -target /
 ```
 
-`FEATHER_REMAPPER_ENABLE_LTO=OFF` is a local workaround for Arm GNU Toolchain 15.x on macOS producing unresolved Pico stdio wrapper symbols during LTO. CI keeps LTO enabled by default.
+Then prepend the toolchain to your PATH (add to `~/.zshrc` to make permanent):
+
+```sh
+export PATH="/Applications/ArmGNUToolchain/15.2.rel1/arm-none-eabi/bin:$PATH"
+```
+
+Build normally:
+
+```sh
+rm -rf build && mkdir build && cd build
+PICO_BOARD=feather_host cmake ..
+make -j$(sysctl -n hw.ncpu)
+```
 
 ## Smoke Test
 
