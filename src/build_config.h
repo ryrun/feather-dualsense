@@ -18,6 +18,10 @@
 #define TOUCHPAD_SCROLL_ENABLE 1
 #define TOUCHPAD_SCROLL_THRESHOLD 100
 
+// Minimum X distance in touchpad pixels (0-1919) for each leg of the
+// R→L→R swipe gesture that switches mode. Prevents accidental triggers.
+#define SWIPE_GESTURE_MIN_X 300
+
 // Right stick numpad: only fires when ramped radius exceeds this value (0-127).
 // High value = near full deflection required before a number is registered.
 #define RSTICK_NUMPAD_THRESHOLD 100

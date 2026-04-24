@@ -48,6 +48,11 @@ struct ActiveController {
   int16_t touch1_scroll_accum;
   bool touchpad_clicked;
   uint8_t touchpad_zone;
+  // R→L→R single-finger swipe gesture state machine.
+  uint8_t swipe_phase;        // 0=idle, 1=need_left, 2=need_right2
+  bool swipe_finger_down;
+  uint16_t swipe_start_x;
+  uint16_t swipe_current_x;
   device_out::KeyboardReport keyboard;
   device_out::MouseReport mouse;
 };
@@ -448,6 +453,66 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
                                     : mapping::Button::kRStick8);   // NW
 }
 
+// Tracks a single-finger R→L→R swipe gesture on the touchpad.
+// Calls mode::ToggleAndReboot() (does not return) when the gesture completes.
+// A second finger active at any point cancels the in-progress gesture.
+void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
+  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
+  constexpr uint8_t kTouchOffset = 32;
+  constexpr uint8_t kTouchPointSize = 4;
+  const uint8_t p0 = report_base + kTouchOffset;
+  const uint8_t p1 = p0 + kTouchPointSize;
+
+  if (len <= static_cast<uint16_t>(p0 + 2)) {
+    return;
+  }
+
+  const bool t0_active = (report[p0] & 0x80) == 0;
+  const bool t1_active = (len > static_cast<uint16_t>(p1 + 2)) &&
+                         ((report[p1] & 0x80) == 0);
+
+  if (t1_active) {
+    // Two fingers: cancel any in-progress single-finger gesture.
+    g_controller.swipe_phase = 0;
+    g_controller.swipe_finger_down = false;
+    return;
+  }
+
+  const uint16_t t0_x = t0_active ?
+      (static_cast<uint16_t>(report[p0 + 1]) |
+       (static_cast<uint16_t>(report[p0 + 2] & 0x0F) << 8)) : 0;
+
+  if (t0_active && !g_controller.swipe_finger_down) {
+    g_controller.swipe_finger_down = true;
+    g_controller.swipe_start_x = t0_x;
+    g_controller.swipe_current_x = t0_x;
+  } else if (t0_active) {
+    g_controller.swipe_current_x = t0_x;
+  } else if (!t0_active && g_controller.swipe_finger_down) {
+    g_controller.swipe_finger_down = false;
+    const int32_t delta = static_cast<int32_t>(g_controller.swipe_current_x) -
+                          static_cast<int32_t>(g_controller.swipe_start_x);
+
+    if (delta > SWIPE_GESTURE_MIN_X) {
+      if (g_controller.swipe_phase == 0) {
+        g_controller.swipe_phase = 1;
+      } else if (g_controller.swipe_phase == 2) {
+        g_controller.swipe_phase = 0;
+        mode::ToggleAndReboot();
+      } else {
+        g_controller.swipe_phase = 0;
+      }
+    } else if (delta < -SWIPE_GESTURE_MIN_X) {
+      if (g_controller.swipe_phase == 1) {
+        g_controller.swipe_phase = 2;
+      } else {
+        g_controller.swipe_phase = 0;
+      }
+    }
+    // Small delta (tap or click): no state change.
+  }
+}
+
 // Updates keyboard/mouse state for a touchpad click event.
 // Returns mouse_changed. Sets *keyboard_changed. Caller is responsible for both sends.
 bool ParseTouchpadClick(uint8_t const* report, uint16_t len,
@@ -812,6 +877,9 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   DebugPrintReport(report, len);
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
+
+  // Swipe gesture works in both modes; ToggleAndReboot() does not return.
+  ParseSwipeGesture(report, len);
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
     device_out::SendGamepad(ParseForGamepad(report, len, raw_buttons));
