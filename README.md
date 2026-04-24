@@ -5,7 +5,7 @@ Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723
 - **KBM mode** – maps controller buttons to a USB HID keyboard and mouse
 - **Gamepad mode** – emulates a Google Stadia Controller (VID `0x18D1`, PID `0x9400`) as a USB gamepad
 
-The active mode is persisted in flash and survives power cycles. Press **Touchpad click + Options** simultaneously, then release one of them, to toggle between modes (the device reboots).
+The active mode is persisted in flash and survives power cycles. Press the **BOOT** button on the Feather board to toggle between modes (the device reboots).
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -120,9 +120,9 @@ Gyro movement is mapped to relative mouse X/Y while at least one finger touches 
 Base sensitivity: `GYRO_MOUSE_SENSITIVITY_Q16 = -682` (~−0.003 per raw unit).  
 Axis scale factors: X = 1.0, Y = 0.7.
 
-## Mode Switch Combo
+## Mode Switch
 
-Press **Touchpad click** and **Options** at the same time (order does not matter), then release at least one of them. The device immediately saves the new mode to flash and reboots. The USB device disconnects and reconnects as the appropriate HID device.
+Press the **BOOT** button on the Feather board to toggle between KBM and Gamepad mode. The device saves the new mode to flash and reboots.
 
 ## Local Build
 

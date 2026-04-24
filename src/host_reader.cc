@@ -633,45 +633,9 @@ void ProcessButtons(uint64_t next_buttons) {
   }
 }
 
-// Checks for the mode-switch combo (Touchpad click + Options held simultaneously).
-// Arms when both are pressed; calls ToggleAndReboot() (noreturn) when one is released.
-// Returns true while armed so callers can suppress normal button processing.
-static bool s_combo_armed = false;
-static bool CheckModeCombo(uint64_t buttons) {
-  constexpr uint64_t kOptions  = mapping::ButtonMask(mapping::Button::kOptions);
-  constexpr uint64_t kTouchpad = mapping::ButtonMask(mapping::Button::kTouchpad);
-  constexpr uint64_t kCombo    = kOptions | kTouchpad;
-
-  if ((buttons & kCombo) == kCombo) {
-    s_combo_armed = true;
-  } else if (s_combo_armed) {
-    mode::ToggleAndReboot();
-  }
-  return s_combo_armed;
-}
-
 }  // namespace
 
-// Builds a Nintendo Switch Pro Controller HID report from a DualSense input.
-//
-// Button layout (SDL2 GameControllerDB for 057E:2009):
-//   bit  0 = A        (Cross)
-//   bit  1 = B        (Circle)
-//   bit  2 = X        (Square)
-//   bit  3 = Y        (Triangle)
-//   bit  4 = L        (L1)
-//   bit  5 = R        (R1)
-//   bit  6 = ZL       (L2 digital)
-//   bit  7 = ZR       (R2 digital)
-//   bit  8 = Minus    (Create)
-//   bit  9 = Plus     (Options)
-//   bit 10 = L3       (L3)
-//   bit 11 = R3       (R3)
-//   bit 12 = Home     (PS)
-//   bit 13 = Capture  (Touchpad click)
-//   bits 14-15 = padding (always 0)
-//
-// Edge paddles: right paddle → A (bit 0), left paddle → L3 (bit 10).
+// Builds a Stadia Controller HID report from a DualSense input.
 static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
                                                  uint16_t len,
                                                  uint64_t button_mask) {
@@ -845,7 +809,6 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   DebugPrintReport(report, len);
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
-  const bool combo_armed = CheckModeCombo(raw_buttons);
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
     device_out::SendGamepad(ParseForGamepad(report, len, raw_buttons));
@@ -853,29 +816,27 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
     return;
   }
 
-  if (!combo_armed) {
-    ProcessButtons(raw_buttons |
-                   ParseLeftStickButtons(report, len)  |
-                   ParseRightStickButtons(report, len));
-    ParseTouchpadClick(report, len);
-    int8_t scroll = 0;
-    if (ParseTouchScroll(report, len, &scroll)) {
-      g_controller.mouse.x = 0;
-      g_controller.mouse.y = 0;
-      g_controller.mouse.wheel = scroll;
-      g_controller.mouse.pan = 0;
-      device_out::SendMouse(g_controller.mouse);
-      g_controller.mouse.wheel = 0;
-    }
-    int16_t mouse_x = 0;
-    int16_t mouse_y = 0;
-    if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
-      g_controller.mouse.x = mouse_x;
-      g_controller.mouse.y = mouse_y;
-      g_controller.mouse.wheel = 0;
-      g_controller.mouse.pan = 0;
-      device_out::SendMouse(g_controller.mouse);
-    }
+  ProcessButtons(raw_buttons |
+                 ParseLeftStickButtons(report, len)  |
+                 ParseRightStickButtons(report, len));
+  ParseTouchpadClick(report, len);
+  int8_t scroll = 0;
+  if (ParseTouchScroll(report, len, &scroll)) {
+    g_controller.mouse.x = 0;
+    g_controller.mouse.y = 0;
+    g_controller.mouse.wheel = scroll;
+    g_controller.mouse.pan = 0;
+    device_out::SendMouse(g_controller.mouse);
+    g_controller.mouse.wheel = 0;
+  }
+  int16_t mouse_x = 0;
+  int16_t mouse_y = 0;
+  if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
+    g_controller.mouse.x = mouse_x;
+    g_controller.mouse.y = mouse_y;
+    g_controller.mouse.wheel = 0;
+    g_controller.mouse.pan = 0;
+    device_out::SendMouse(g_controller.mouse);
   }
   tuh_hid_receive_report(dev_addr, instance);
 }
