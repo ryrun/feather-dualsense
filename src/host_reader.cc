@@ -448,19 +448,21 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
                                     : mapping::Button::kRStick8);   // NW
 }
 
-void ParseTouchpadClick(uint8_t const* report, uint16_t len) {
+// Updates keyboard/mouse state for a touchpad click event.
+// Returns mouse_changed. Sets *keyboard_changed. Caller is responsible for both sends.
+bool ParseTouchpadClick(uint8_t const* report, uint16_t len,
+                        bool* keyboard_changed) {
   const uint8_t button_base = (report[0] == 0x01) ? 8 : 7;
   if (len <= static_cast<uint16_t>(button_base + 2)) {
-    return;
+    return false;
   }
 
   const bool clicked = (report[button_base + 2] & 0x02) != 0;
   if (clicked == g_controller.touchpad_clicked) {
-    return;
+    return false;
   }
   g_controller.touchpad_clicked = clicked;
 
-  bool keyboard_changed = false;
   bool mouse_changed = false;
 
   if (clicked) {
@@ -475,7 +477,7 @@ void ParseTouchpadClick(uint8_t const* report, uint16_t len) {
 
     if (x < 640) {
       g_controller.touchpad_zone = 1;
-      keyboard_changed |= AddKey(&g_controller.keyboard, usb::kKeyM);
+      *keyboard_changed |= AddKey(&g_controller.keyboard, usb::kKeyM);
     } else if (x < 1280) {
       g_controller.touchpad_zone = 2;
       const uint8_t before = g_controller.mouse.buttons;
@@ -483,12 +485,12 @@ void ParseTouchpadClick(uint8_t const* report, uint16_t len) {
       mouse_changed |= before != g_controller.mouse.buttons;
     } else {
       g_controller.touchpad_zone = 3;
-      keyboard_changed |= AddKey(&g_controller.keyboard, usb::kKeyN);
+      *keyboard_changed |= AddKey(&g_controller.keyboard, usb::kKeyN);
     }
   } else {
     switch (g_controller.touchpad_zone) {
       case 1:
-        keyboard_changed |= RemoveKey(&g_controller.keyboard, usb::kKeyM);
+        *keyboard_changed |= RemoveKey(&g_controller.keyboard, usb::kKeyM);
         break;
       case 2: {
         const uint8_t before = g_controller.mouse.buttons;
@@ -497,22 +499,13 @@ void ParseTouchpadClick(uint8_t const* report, uint16_t len) {
         break;
       }
       case 3:
-        keyboard_changed |= RemoveKey(&g_controller.keyboard, usb::kKeyN);
+        *keyboard_changed |= RemoveKey(&g_controller.keyboard, usb::kKeyN);
         break;
     }
     g_controller.touchpad_zone = 0;
   }
 
-  if (keyboard_changed) {
-    device_out::SendKeyboard(g_controller.keyboard);
-  }
-  if (mouse_changed) {
-    g_controller.mouse.x = 0;
-    g_controller.mouse.y = 0;
-    g_controller.mouse.wheel = 0;
-    g_controller.mouse.pan = 0;
-    device_out::SendMouse(g_controller.mouse);
-  }
+  return mouse_changed;
 }
 
 uint64_t ParseDualSenseButtons(uint8_t const* report, uint16_t len) {
@@ -610,14 +603,13 @@ uint64_t ParseDualSenseButtons(uint8_t const* report, uint16_t len) {
   return buttons;
 }
 
-// Returns true if mouse button state changed (caller is responsible for sending).
-bool ProcessButtons(uint64_t next_buttons) {
+// Returns mouse_changed. Sets *keyboard_changed. Caller is responsible for both sends.
+bool ProcessButtons(uint64_t next_buttons, bool* keyboard_changed) {
   const uint64_t changed = g_controller.buttons ^ next_buttons;
   if (changed == 0) {
     return false;
   }
 
-  bool keyboard_changed = false;
   bool mouse_changed = false;
 
   for (size_t i = 0; i < mapping::kButtonCount; ++i) {
@@ -626,14 +618,10 @@ bool ProcessButtons(uint64_t next_buttons) {
       continue;
     }
 
-    ApplyAction(g_controller.actions[i], (next_buttons & mask) != 0, &keyboard_changed, &mouse_changed);
+    ApplyAction(g_controller.actions[i], (next_buttons & mask) != 0, keyboard_changed, &mouse_changed);
   }
 
   g_controller.buttons = next_buttons;
-
-  if (keyboard_changed) {
-    device_out::SendKeyboard(g_controller.keyboard);
-  }
   return mouse_changed;
 }
 
@@ -831,16 +819,24 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
     return;
   }
 
+  bool keyboard_send = false;
   bool mouse_send = ProcessButtons(raw_buttons |
                  ParseLeftStickButtons(report, len)  |
-                 ParseRightStickButtons(report, len));
-  ParseTouchpadClick(report, len);
+                 ParseRightStickButtons(report, len),
+                 &keyboard_send);
 
-  // Zero position/scroll up front; scroll or gyro will fill in what's needed.
+  // Zero position/scroll up front so all sends below use a clean slate.
   g_controller.mouse.x = 0;
   g_controller.mouse.y = 0;
   g_controller.mouse.wheel = 0;
   g_controller.mouse.pan = 0;
+
+  mouse_send |= ParseTouchpadClick(report, len, &keyboard_send);
+
+  // Single keyboard send covers both button changes and touchpad click zones.
+  if (keyboard_send) {
+    device_out::SendKeyboard(g_controller.keyboard);
+  }
 
   int8_t scroll = 0;
   if (ParseTouchScroll(report, len, &scroll)) {
