@@ -25,7 +25,7 @@ set_source_files_properties(
 )
 
 option(FEATHER_REMAPPER_DEBUG "Enable verbose UART report logging" OFF)
-option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" ON)
+option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" OFF)
 
 add_executable(feather_remapper
   src/main.cc
