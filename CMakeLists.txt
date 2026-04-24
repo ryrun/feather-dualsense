@@ -17,6 +17,13 @@ project(feather_dualsense C CXX ASM)
 
 pico_sdk_init()
 
+# Pico-PIO-USB pio_usb.c has a sign-compare issue (crc_receive ^ 0xffff compared
+# unsigned) that GCC flags as an error. Suppress it for that one third-party file.
+set_source_files_properties(
+    "${CMAKE_CURRENT_LIST_DIR}/pico-sdk/lib/tinyusb/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb.c"
+    PROPERTIES COMPILE_OPTIONS "-Wno-sign-compare"
+)
+
 option(FEATHER_REMAPPER_DEBUG "Enable verbose UART report logging" OFF)
 option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" ON)
 
