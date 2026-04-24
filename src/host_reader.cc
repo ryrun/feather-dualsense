@@ -68,6 +68,7 @@ void ClearHidState() {
   g_controller.dev_addr = 0;
   g_controller.instance = 0;
   g_controller.actions = nullptr;
+  g_controller.gamepad_actions = nullptr;
   g_controller.buttons = 0;
   g_controller.gyro_bias_x_q8 = 0;
   g_controller.gyro_bias_y_q8 = 0;

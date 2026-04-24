@@ -6,13 +6,12 @@
 
 #define REPORT_INTERVAL_MS 1
 #define KEYBOARD_ROLLOVER_KEYS 14
-#define HOST_REPORT_BUFFER_SIZE 64
 #define STATUS_LED_SELFTEST_MS 250
 
 #define GYRO_MOUSE_ENABLE 1
-#define GYRO_MOUSE_DEADZONE 0
+// Sensitivity in Q16 fixed-point. Negative = invert direction.
 #define GYRO_MOUSE_SENSITIVITY_Q16 (-682)
-#define GYRO_MOUSE_X_FACTOR 1.0f
+// Y axis scale factor relative to X (applied as integer Q16 at compile time).
 #define GYRO_MOUSE_Y_FACTOR 0.7f
 
 #define TOUCHPAD_SCROLL_ENABLE 1
