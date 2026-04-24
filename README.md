@@ -74,6 +74,7 @@ The Feather enumerates as a single HID gamepad that mimics the Google Stadia Con
 | Right stick | Numpad `1`–`8` |
 | Gyro (while touching touchpad) | Relative mouse X/Y |
 | Touchpad vertical swipe | Scroll wheel |
+| Touchpad full-width swipe (left→right or right→left, single finger) | Toggle KBM ↔ Gamepad mode |
 
 ### DualSense Edge (additional / different)
 
@@ -126,7 +127,9 @@ Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch
 
-Press the **BOOT** button on the Feather board to toggle between KBM and Gamepad mode. The device saves the new mode to flash and reboots.
+Press the **BOOT** button on the Feather board, or perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to toggle between KBM and Gamepad mode. The device saves the new mode to flash and reboots.
+
+The swipe gesture works in both modes. A second finger on the pad at any point during the swipe cancels it.
 
 ## Local Build
 
