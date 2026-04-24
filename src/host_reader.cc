@@ -494,15 +494,15 @@ void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
                           static_cast<int32_t>(g_controller.swipe_start_x);
 
     if (delta > SWIPE_GESTURE_MIN_X) {
-      if (g_controller.swipe_phase == 0) {
-        g_controller.swipe_phase = 1;
-      } else if (g_controller.swipe_phase == 2) {
+      // Right swipe: complete gesture or (re)start from first-right.
+      if (g_controller.swipe_phase == 2) {
         g_controller.swipe_phase = 0;
         mode::ToggleAndReboot();
       } else {
-        g_controller.swipe_phase = 0;
+        g_controller.swipe_phase = 1;  // phase 0 OR 1 → first right done
       }
     } else if (delta < -SWIPE_GESTURE_MIN_X) {
+      // Left swipe: only valid after a right swipe.
       if (g_controller.swipe_phase == 1) {
         g_controller.swipe_phase = 2;
       } else {
