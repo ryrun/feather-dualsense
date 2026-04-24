@@ -48,8 +48,7 @@ struct ActiveController {
   int16_t touch1_scroll_accum;
   bool touchpad_clicked;
   uint8_t touchpad_zone;
-  // R→L→R single-finger swipe gesture state machine.
-  uint8_t swipe_phase;        // 0=idle, 1=need_left, 2=need_right2
+  // Full-width single-finger swipe gesture state (left→right or right→left).
   bool swipe_finger_down;
   uint16_t swipe_start_x;
   uint16_t swipe_current_x;
@@ -453,9 +452,10 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
                                     : mapping::Button::kRStick8);   // NW
 }
 
-// Tracks a single-finger R→L→R swipe gesture on the touchpad.
-// Calls mode::ToggleAndReboot() (does not return) when the gesture completes.
-// A second finger active at any point cancels the in-progress gesture.
+// Detects a full-width single-finger swipe for mode switching.
+// Trigger: one finger starts within SWIPE_GESTURE_EDGE_MARGIN px of either
+// edge and ends past the opposite edge threshold. Second finger cancels.
+// Calls mode::ToggleAndReboot() (does not return) on success.
 void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
   constexpr uint8_t kTouchOffset = 32;
@@ -472,8 +472,6 @@ void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
                          ((report[p1] & 0x80) == 0);
 
   if (t1_active) {
-    // Two fingers: cancel any in-progress single-finger gesture.
-    g_controller.swipe_phase = 0;
     g_controller.swipe_finger_down = false;
     return;
   }
@@ -490,26 +488,15 @@ void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
     g_controller.swipe_current_x = t0_x;
   } else if (!t0_active && g_controller.swipe_finger_down) {
     g_controller.swipe_finger_down = false;
-    const int32_t delta = static_cast<int32_t>(g_controller.swipe_current_x) -
-                          static_cast<int32_t>(g_controller.swipe_start_x);
-
-    if (delta > SWIPE_GESTURE_MIN_X) {
-      // Right swipe: complete gesture or (re)start from first-right.
-      if (g_controller.swipe_phase == 2) {
-        g_controller.swipe_phase = 0;
-        mode::ToggleAndReboot();
-      } else {
-        g_controller.swipe_phase = 1;  // phase 0 OR 1 → first right done
-      }
-    } else if (delta < -SWIPE_GESTURE_MIN_X) {
-      // Left swipe: only valid after a right swipe.
-      if (g_controller.swipe_phase == 1) {
-        g_controller.swipe_phase = 2;
-      } else {
-        g_controller.swipe_phase = 0;
-      }
+    const uint16_t start = g_controller.swipe_start_x;
+    const uint16_t end   = g_controller.swipe_current_x;
+    constexpr uint16_t kLeft  = SWIPE_GESTURE_EDGE_MARGIN;
+    constexpr uint16_t kRight = 1920 - SWIPE_GESTURE_EDGE_MARGIN;
+    const bool left_to_right = (start < kLeft)  && (end > kRight);
+    const bool right_to_left = (start > kRight) && (end < kLeft);
+    if (left_to_right || right_to_left) {
+      mode::ToggleAndReboot();
     }
-    // Small delta (tap or click): no state change.
   }
 }
 
