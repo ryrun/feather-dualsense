@@ -113,7 +113,7 @@ Mute, Touchpad click, and Touchpad touch are not forwarded in gamepad mode.
 
 Gyro movement is mapped to relative mouse X/Y while at least one finger touches the touchpad. When no touch is active the gyro output is suppressed and the sub-pixel accumulator is reset.
 
-**Bias correction** — While the controller is held still (all three gyro axes below threshold) and the touchpad is **not** being touched, a per-axis bias estimate is updated via an EMA (α ≈ 0.01). This continuously compensates for sensor drift without interfering with aiming.
+**Bias correction** — While the controller is held still (all three gyro axes below threshold) and the touchpad is **not** being touched, a per-axis bias estimate is updated via an EMA (α ≈ 0.0025, ~0.4 s time constant at 1000 Hz). This continuously compensates for sensor drift without interfering with aiming.
 
 **Soft suppression** — Instead of a hard deadzone, small residual values after bias subtraction are shaped with a quadratic fade-in (`output = v × |v| / threshold`, threshold = 15 raw units). Micro-movements are preserved rather than cut off.
 

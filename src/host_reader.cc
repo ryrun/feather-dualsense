@@ -331,8 +331,9 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
   const int16_t corrected_y = gyro_for_y - bias_y;
   const int16_t corrected_z = gyro_raw_z - bias_x;  // roll — no own bias, use x as proxy
 
-  // Continuous bias update via slow EMA (alpha≈0.01) — only when NOT touching
-  // and all 3 axes are still. This prevents bias drift during active aiming.
+  // Continuous bias update via slow EMA (alpha≈0.0025, ~0.4s time constant at
+  // 1000 Hz) — only when NOT touching and all 3 axes are still. This prevents
+  // bias drift during active aiming.
   constexpr int16_t kRestThreshold = 12;
   const bool touching = ParseTouchActive(report, len);
   if (!touching &&
@@ -340,9 +341,9 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
       Abs32(corrected_y) < kRestThreshold &&
       Abs32(corrected_z) < kRestThreshold) {
     g_controller.gyro_bias_x_q8 +=
-        ((static_cast<int32_t>(gyro_for_x) << 8) - g_controller.gyro_bias_x_q8) / 100;
+        ((static_cast<int32_t>(gyro_for_x) << 8) - g_controller.gyro_bias_x_q8) / 400;
     g_controller.gyro_bias_y_q8 +=
-        ((static_cast<int32_t>(gyro_for_y) << 8) - g_controller.gyro_bias_y_q8) / 100;
+        ((static_cast<int32_t>(gyro_for_y) << 8) - g_controller.gyro_bias_y_q8) / 400;
   }
 
   if (!touching) {
