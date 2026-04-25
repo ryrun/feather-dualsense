@@ -13,9 +13,6 @@ enum class Mode : uint8_t {
 void Init();
 Mode GetActive();
 
-// Reads the BOOTSEL button. Must not be called while executing from flash.
-bool ReadBootselButton();
-
 // Toggles the active mode, writes it to flash, and reboots the device.
 // Does not return.
 [[noreturn]] void ToggleAndReboot();
