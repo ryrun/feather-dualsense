@@ -81,8 +81,17 @@ void ClearHidState() {
   g_controller.actions = nullptr;
   g_controller.gamepad_actions = nullptr;
   g_controller.buttons = 0;
+  g_controller.gyro_mouse_x_remainder_q16 = 0;
+  g_controller.gyro_mouse_y_remainder_q16 = 0;
   g_controller.gyro_bias_x_q8 = 0;
   g_controller.gyro_bias_y_q8 = 0;
+  g_controller.touch0_active = false;
+  g_controller.touch0_scroll_accum = 0;
+  g_controller.touch1_active = false;
+  g_controller.touch1_scroll_accum = 0;
+  g_controller.touchpad_clicked = false;
+  g_controller.touchpad_zone = 0;
+  g_controller.swipe_finger_down = false;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
   memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
 }
@@ -880,12 +889,6 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
                  ParseRightStickButtons(report, len),
                  &keyboard_send);
 
-  // Zero position/scroll up front so all sends below use a clean slate.
-  g_controller.mouse.x = 0;
-  g_controller.mouse.y = 0;
-  g_controller.mouse.wheel = 0;
-  g_controller.mouse.pan = 0;
-
   mouse_send |= ParseTouchpadClick(report, len, &keyboard_send);
 
   // Single keyboard send covers both button changes and touchpad click zones.
@@ -896,21 +899,41 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   int8_t scroll = 0;
   if (ParseTouchScroll(report, len, &scroll)) {
     // Scroll and gyro are mutually exclusive; scroll takes priority.
-    g_controller.mouse.wheel = scroll;
+    // Accumulate in case the endpoint wasn't ready last frame.
+    const int16_t new_wheel =
+        static_cast<int16_t>(g_controller.mouse.wheel) + scroll;
+    g_controller.mouse.wheel = static_cast<int8_t>(
+        new_wheel > 127 ? 127 : new_wheel < -127 ? -127 : new_wheel);
     mouse_send = true;
   } else {
     int16_t mouse_x = 0;
     int16_t mouse_y = 0;
     if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
-      g_controller.mouse.x = mouse_x;
-      g_controller.mouse.y = mouse_y;
+      // Accumulate across frames so pixels are never lost when the host
+      // polls slower than 1000 Hz (e.g. macOS at 125 Hz).
+      g_controller.mouse.x = ClampI16(
+          static_cast<int32_t>(g_controller.mouse.x) + mouse_x);
+      g_controller.mouse.y = ClampI16(
+          static_cast<int32_t>(g_controller.mouse.y) + mouse_y);
       mouse_send = true;
     }
   }
 
-  // Single consolidated mouse send per callback — avoids double-send at 1000 Hz.
+  // Also flush any accumulated x/y/wheel from previously dropped frames.
+  mouse_send |= (g_controller.mouse.x != 0 ||
+                 g_controller.mouse.y != 0 ||
+                 g_controller.mouse.wheel != 0);
+
+  // Single consolidated mouse send per callback.
+  // Clear relative axes only after a successful send — if the endpoint is not
+  // ready the values stay accumulated for the next callback.
   if (mouse_send) {
-    device_out::SendMouse(g_controller.mouse);
+    if (device_out::SendMouse(g_controller.mouse)) {
+      g_controller.mouse.x = 0;
+      g_controller.mouse.y = 0;
+      g_controller.mouse.wheel = 0;
+      g_controller.mouse.pan = 0;
+    }
   }
   tuh_hid_receive_report(dev_addr, instance);
 }

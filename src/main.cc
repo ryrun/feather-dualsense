@@ -15,20 +15,27 @@ int main() {
 
   uint32_t boot_press_start = 0;
   bool boot_was_pressed = false;
+  uint32_t last_bootsel_check = 0;
 
   while (true) {
     device_out::Task();
     host_reader::Task();
 
+    // ReadBootselButton() disables all interrupts for ~24 µs (QSPI CS tri-state
+    // settle delay). Throttle to every 10 ms to keep the interrupt blackout
+    // budget negligible relative to the 1 ms USB frame period.
+    const uint32_t now = board_millis();
+    if (now - last_bootsel_check < 10) {
+      continue;
+    }
+    last_bootsel_check = now;
+
     const bool boot_pressed = mode::ReadBootselButton();
     if (boot_pressed && !boot_was_pressed) {
-      // Leading edge: record press start time.
-      boot_press_start = board_millis();
+      boot_press_start = now;
     }
     if (!boot_pressed && boot_was_pressed) {
-      // Trailing edge: switch only if it was a short press.
-      const uint32_t held_ms = board_millis() - boot_press_start;
-      if (held_ms < kBootselShortPressMaxMs) {
+      if (now - boot_press_start < kBootselShortPressMaxMs) {
         mode::ToggleAndReboot();
       }
     }
