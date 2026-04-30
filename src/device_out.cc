@@ -40,6 +40,14 @@ bool SendGamepad(const GamepadReport& report) {
   return tud_hid_n_report(0, kReportIdGamepad, &report, sizeof(report));
 }
 
+bool SendDualShock4(const DualShock4Report& report) {
+  if (!tud_ready() || !tud_hid_n_ready(0)) {
+    return false;
+  }
+
+  return tud_hid_n_report(0, kReportIdDualShock4, &report, sizeof(report));
+}
+
 }  // namespace device_out
 
 extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance,

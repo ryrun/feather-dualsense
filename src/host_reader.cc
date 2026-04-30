@@ -733,6 +733,57 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   gp.consumer = 0;
   return gp;
 }
+
+static device_out::DualShock4Report ParseForDualShock4(uint8_t const* report,
+                                                       uint16_t len,
+                                                       uint64_t button_mask) {
+  device_out::DualShock4Report ds4 = {};
+
+  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
+  const uint8_t button_base = report_base + 7;
+
+  if (len > button_base) {
+    const uint8_t hat = report[button_base] & 0x0F;
+    ds4.hat_buttons = (hat > 7) ? 0x08 : hat;
+  } else {
+    ds4.hat_buttons = 0x08;
+  }
+
+  const auto pressed = [button_mask](mapping::Button button) {
+    return (button_mask & mapping::ButtonMask(button)) != 0;
+  };
+
+  if (pressed(mapping::Button::kSquare)) ds4.hat_buttons |= 0x10;
+  if (pressed(mapping::Button::kCross)) ds4.hat_buttons |= 0x20;
+  if (pressed(mapping::Button::kCircle)) ds4.hat_buttons |= 0x40;
+  if (pressed(mapping::Button::kTriangle)) ds4.hat_buttons |= 0x80;
+
+  if (pressed(mapping::Button::kL1)) ds4.buttons1 |= 0x01;
+  if (pressed(mapping::Button::kR1)) ds4.buttons1 |= 0x02;
+  if (pressed(mapping::Button::kL2)) ds4.buttons1 |= 0x04;
+  if (pressed(mapping::Button::kR2)) ds4.buttons1 |= 0x08;
+  if (pressed(mapping::Button::kCreate)) ds4.buttons1 |= 0x10;   // Share
+  if (pressed(mapping::Button::kOptions)) ds4.buttons1 |= 0x20;
+  if (pressed(mapping::Button::kL3)) ds4.buttons1 |= 0x40;
+  if (pressed(mapping::Button::kR3)) ds4.buttons1 |= 0x80;
+
+  if (pressed(mapping::Button::kPs)) ds4.buttons2 |= 0x01;
+  if (pressed(mapping::Button::kTouchpad)) ds4.buttons2 |= 0x02;
+
+  if (len >= static_cast<uint16_t>(report_base + 6)) {
+    ds4.left_x = report[report_base + 0];
+    ds4.left_y = report[report_base + 1];
+    ds4.right_x = report[report_base + 2];
+    ds4.right_y = report[report_base + 3];
+    ds4.left_trigger = report[report_base + 4];
+    ds4.right_trigger = report[report_base + 5];
+  } else {
+    ds4.left_x = ds4.left_y = 0x80;
+    ds4.right_x = ds4.right_y = 0x80;
+  }
+
+  return ds4;
+}
 // Layout mirrors struct dualsense_output_report from hid-playstation.c:
 //   byte  1 = valid_flag1 (0x04 = lightbar control enable)
 //   byte 44 = lightbar_red
@@ -793,6 +844,8 @@ extern "C" void tuh_hid_mount_cb(uint8_t dev_addr,
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
     SendDualSenseLightbar(dev_addr, instance, 255, 200, 0);  // yellow
+  } else if (mode::GetActive() == mode::Mode::kDualShock4) {
+    SendDualSenseLightbar(dev_addr, instance, 160, 0, 255);  // purple
   } else {
     SendDualSenseLightbar(dev_addr, instance, 0, 0, 255);    // blue
   }
@@ -836,14 +889,23 @@ extern "C" void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
   if (g_controller.active &&
       g_controller.dev_addr == dev_addr &&
       g_controller.instance == instance) {
-    if (mode::GetActive() == mode::Mode::kGamepad) {
+    if (mode::GetActive() == mode::Mode::kGamepad ||
+        mode::GetActive() == mode::Mode::kDualShock4) {
       device_out::GamepadReport empty_gp = {};
       empty_gp.hat = 0x08;  // hat center (null state)
       empty_gp.left_x = empty_gp.left_y = 0x80;
       empty_gp.right_x = empty_gp.right_y = 0x80;
       empty_gp.brake = empty_gp.accel = 0;
       empty_gp.consumer = 0;
-      device_out::SendGamepad(empty_gp);
+      if (mode::GetActive() == mode::Mode::kGamepad) {
+        device_out::SendGamepad(empty_gp);
+      } else {
+        device_out::DualShock4Report empty_ds4 = {};
+        empty_ds4.left_x = empty_ds4.left_y = 0x80;
+        empty_ds4.right_x = empty_ds4.right_y = 0x80;
+        empty_ds4.hat_buttons = 0x08;
+        device_out::SendDualShock4(empty_ds4);
+      }
     } else {
       device_out::KeyboardReport empty_keyboard = {};
       device_out::MouseReport empty_mouse = {};
@@ -874,6 +936,11 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
     device_out::SendGamepad(ParseForGamepad(report, len, raw_buttons));
+    tuh_hid_receive_report(dev_addr, instance);
+    return;
+  }
+  if (mode::GetActive() == mode::Mode::kDualShock4) {
+    device_out::SendDualShock4(ParseForDualShock4(report, len, raw_buttons));
     tuh_hid_receive_report(dev_addr, instance);
     return;
   }

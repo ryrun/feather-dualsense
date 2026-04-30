@@ -6,7 +6,8 @@ namespace mode {
 
 enum class Mode : uint8_t {
   kKeyboardMouse = 0,
-  kGamepad = 1,
+  kGamepad = 1,  // Stadia Controller
+  kDualShock4 = 2,
   kCount,
 };
 

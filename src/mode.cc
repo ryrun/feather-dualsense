@@ -50,9 +50,9 @@ Mode GetActive() {
 }
 
 [[noreturn]] void ToggleAndReboot() {
-  const Mode new_mode = (g_active_mode == Mode::kKeyboardMouse)
-                            ? Mode::kGamepad
-                            : Mode::kKeyboardMouse;
+  const uint8_t next =
+      (static_cast<uint8_t>(g_active_mode) + 1) % static_cast<uint8_t>(Mode::kCount);
+  const Mode new_mode = static_cast<Mode>(next);
   WriteModeToFlash(new_mode);
   watchdog_enable(10, false);
   while (true) {
