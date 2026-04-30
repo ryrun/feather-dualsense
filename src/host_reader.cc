@@ -60,6 +60,18 @@ struct ActiveController {
 
 ActiveController g_controller = {};
 
+struct TouchPoint {
+  bool active;
+  uint8_t id;
+  uint16_t x;
+  int16_t y;
+};
+
+struct TouchState {
+  TouchPoint point[2];
+  bool any_active;
+};
+
 #if FEATHER_REMAPPER_DEBUG
 void DebugPrintReport(uint8_t const* report, uint16_t len) {
   printf("hid report len=%u:", len);
@@ -240,68 +252,66 @@ int16_t ConsumeMouseDelta(int32_t delta_q16, int32_t* remainder_q16) {
   return clamped;
 }
 
-bool ParseTouchActive(uint8_t const* report, uint16_t len) {
-  // USB report ID 0x01 is followed by struct dualsense_input_report. Touch
-  // points begin at struct offset 32; bit 7 in contact means inactive.
+TouchState ParseTouchState(uint8_t const* report, uint16_t len) {
+  TouchState touch = {};
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
-  constexpr uint8_t kTouchPointsOffset = 32;
+  constexpr uint8_t kTouchOffset = 32;
   constexpr uint8_t kTouchPointSize = 4;
-  const uint8_t point0 = report_base + kTouchPointsOffset;
-  const uint8_t point1 = point0 + kTouchPointSize;
-  if (len <= point1) {
-    return false;
+
+  for (uint8_t i = 0; i < 2; ++i) {
+    const uint8_t p = report_base + kTouchOffset + i * kTouchPointSize;
+    if (len <= static_cast<uint16_t>(p + 3)) {
+      continue;
+    }
+
+    TouchPoint& point = touch.point[i];
+    point.active = (report[p] & 0x80) == 0;
+    point.id = report[p] & 0x7F;
+    if (!point.active) {
+      continue;
+    }
+
+    point.x = static_cast<uint16_t>(report[p + 1]) |
+              (static_cast<uint16_t>(report[p + 2] & 0x0F) << 8);
+    point.y = static_cast<int16_t>(
+        (static_cast<uint16_t>(report[p + 2] & 0xF0) >> 4) |
+        (static_cast<uint16_t>(report[p + 3]) << 4));
+    touch.any_active = true;
   }
 
-  return ((report[point0] & 0x80) == 0) || ((report[point1] & 0x80) == 0);
+  return touch;
 }
 
 // Updates tracking state for one touch point and accumulates Y delta.
-void UpdateTouchPoint(uint8_t const* p, bool* active, uint8_t* id,
+void UpdateTouchPoint(const TouchPoint& point, bool* active, uint8_t* id,
                       int16_t* last_y, int16_t* accum) {
-  const bool finger_down = (p[0] & 0x80) == 0;
-  const uint8_t touch_id = p[0] & 0x7F;
-
-  if (!finger_down) {
+  if (!point.active) {
     *active = false;
     *accum = 0;
     return;
   }
 
-  const int16_t y = static_cast<int16_t>(
-      (static_cast<uint16_t>(p[2] & 0xF0) >> 4) |
-      (static_cast<uint16_t>(p[3]) << 4));
-
-  if (!*active || *id != touch_id) {
+  if (!*active || *id != point.id) {
     *active = true;
-    *id = touch_id;
-    *last_y = y;
+    *id = point.id;
+    *last_y = point.y;
     *accum = 0;
     return;
   }
 
-  *accum += y - *last_y;
-  *last_y = y;
+  *accum += point.y - *last_y;
+  *last_y = point.y;
 }
 
-bool ParseTouchScroll(uint8_t const* report, uint16_t len, int8_t* scroll) {
+bool ParseTouchScroll(const TouchState& touch, int8_t* scroll) {
   *scroll = 0;
 #if TOUCHPAD_SCROLL_ENABLE
-  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
-  constexpr uint8_t kTouchOffset = 32;
-  constexpr uint8_t kTouchPointSize = 4;
-  const uint8_t p0 = report_base + kTouchOffset;
-  const uint8_t p1 = p0 + kTouchPointSize;
-
-  if (len > static_cast<uint16_t>(p0 + 3)) {
-    UpdateTouchPoint(&report[p0],
-                     &g_controller.touch0_active, &g_controller.touch0_id,
-                     &g_controller.touch0_last_y, &g_controller.touch0_scroll_accum);
-  }
-  if (len > static_cast<uint16_t>(p1 + 3)) {
-    UpdateTouchPoint(&report[p1],
-                     &g_controller.touch1_active, &g_controller.touch1_id,
-                     &g_controller.touch1_last_y, &g_controller.touch1_scroll_accum);
-  }
+  UpdateTouchPoint(touch.point[0],
+                   &g_controller.touch0_active, &g_controller.touch0_id,
+                   &g_controller.touch0_last_y, &g_controller.touch0_scroll_accum);
+  UpdateTouchPoint(touch.point[1],
+                   &g_controller.touch1_active, &g_controller.touch1_id,
+                   &g_controller.touch1_last_y, &g_controller.touch1_scroll_accum);
 
   // Fire scroll if either finger exceeds the threshold; reset both to avoid double-firing.
   const int16_t accum0 = g_controller.touch0_scroll_accum;
@@ -317,13 +327,13 @@ bool ParseTouchScroll(uint8_t const* report, uint16_t len, int8_t* scroll) {
     return true;
   }
 #else
-  (void)report;
-  (void)len;
+  (void)touch;
 #endif
   return false;
 }
 
-bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16_t* mouse_y) {
+bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch,
+                    int16_t* mouse_x, int16_t* mouse_y) {
 #if GYRO_MOUSE_ENABLE
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
   constexpr uint8_t kGyroOffset = 15;
@@ -352,7 +362,7 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
   // 1000 Hz) — only when NOT touching and all 3 axes are still. This prevents
   // bias drift during active aiming.
   constexpr int16_t kRestThreshold = 12;
-  const bool touching = ParseTouchActive(report, len);
+  const bool touching = touch.any_active;
   if (!touching &&
       Abs32(corrected_x) < kRestThreshold &&
       Abs32(corrected_y) < kRestThreshold &&
@@ -385,6 +395,7 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, int16_t* mouse_x, int16
 #else
   (void)report;
   (void)len;
+  (void)touch;
   (void)mouse_x;
   (void)mouse_y;
   return false;
@@ -469,37 +480,19 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
 // Trigger: one finger starts within SWIPE_GESTURE_EDGE_MARGIN px of either
 // edge and ends past the opposite edge threshold. Second finger cancels.
 // Calls mode::ToggleAndReboot() (does not return) on success.
-void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
-  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
-  constexpr uint8_t kTouchOffset = 32;
-  constexpr uint8_t kTouchPointSize = 4;
-  const uint8_t p0 = report_base + kTouchOffset;
-  const uint8_t p1 = p0 + kTouchPointSize;
-
-  if (len <= static_cast<uint16_t>(p0 + 2)) {
-    return;
-  }
-
-  const bool t0_active = (report[p0] & 0x80) == 0;
-  const bool t1_active = (len > static_cast<uint16_t>(p1 + 2)) &&
-                         ((report[p1] & 0x80) == 0);
-
-  if (t1_active) {
+void ParseSwipeGesture(const TouchState& touch) {
+  if (touch.point[1].active) {
     g_controller.swipe_finger_down = false;
     return;
   }
 
-  const uint16_t t0_x = t0_active ?
-      (static_cast<uint16_t>(report[p0 + 1]) |
-       (static_cast<uint16_t>(report[p0 + 2] & 0x0F) << 8)) : 0;
-
-  if (t0_active && !g_controller.swipe_finger_down) {
+  if (touch.point[0].active && !g_controller.swipe_finger_down) {
     g_controller.swipe_finger_down = true;
-    g_controller.swipe_start_x = t0_x;
-    g_controller.swipe_current_x = t0_x;
-  } else if (t0_active) {
-    g_controller.swipe_current_x = t0_x;
-  } else if (!t0_active && g_controller.swipe_finger_down) {
+    g_controller.swipe_start_x = touch.point[0].x;
+    g_controller.swipe_current_x = touch.point[0].x;
+  } else if (touch.point[0].active) {
+    g_controller.swipe_current_x = touch.point[0].x;
+  } else if (!touch.point[0].active && g_controller.swipe_finger_down) {
     g_controller.swipe_finger_down = false;
     const uint16_t start = g_controller.swipe_start_x;
     const uint16_t end   = g_controller.swipe_current_x;
@@ -516,7 +509,7 @@ void ParseSwipeGesture(uint8_t const* report, uint16_t len) {
 // Updates keyboard/mouse state for a touchpad click event.
 // Returns mouse_changed. Sets *keyboard_changed. Caller is responsible for both sends.
 bool ParseTouchpadClick(uint8_t const* report, uint16_t len,
-                        bool* keyboard_changed) {
+                        const TouchState& touch, bool* keyboard_changed) {
   const uint8_t button_base = (report[0] == 0x01) ? 8 : 7;
   if (len <= static_cast<uint16_t>(button_base + 2)) {
     return false;
@@ -532,12 +525,9 @@ bool ParseTouchpadClick(uint8_t const* report, uint16_t len,
 
   if (clicked) {
     // Read X position of touch point 0 to determine zone (0-1919 → three equal thirds).
-    const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
-    const uint8_t p = report_base + 32;
     uint16_t x = 960;  // default to middle
-    if (len > static_cast<uint16_t>(p + 2) && (report[p] & 0x80) == 0) {
-      x = static_cast<uint16_t>(report[p + 1]) |
-          (static_cast<uint16_t>(report[p + 2] & 0x0F) << 8);
+    if (touch.point[0].active) {
+      x = touch.point[0].x;
     }
 
     if (x < 640) {
@@ -877,9 +867,10 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   DebugPrintReport(report, len);
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
+  const TouchState touch = ParseTouchState(report, len);
 
   // Swipe gesture works in both modes; ToggleAndReboot() does not return.
-  ParseSwipeGesture(report, len);
+  ParseSwipeGesture(touch);
 
   if (mode::GetActive() == mode::Mode::kGamepad) {
     device_out::SendGamepad(ParseForGamepad(report, len, raw_buttons));
@@ -893,7 +884,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
                  ParseRightStickButtons(report, len),
                  &keyboard_send);
 
-  mouse_send |= ParseTouchpadClick(report, len, &keyboard_send);
+  mouse_send |= ParseTouchpadClick(report, len, touch, &keyboard_send);
 
   // Single keyboard send covers both button changes and touchpad click zones.
   // Keep absolute state pending until the device endpoint accepts it; otherwise
@@ -907,7 +898,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   }
 
   int8_t scroll = 0;
-  if (ParseTouchScroll(report, len, &scroll)) {
+  if (ParseTouchScroll(touch, &scroll)) {
     // Scroll and gyro are mutually exclusive; scroll takes priority.
     // Accumulate in case the endpoint wasn't ready last frame.
     const int16_t new_wheel =
@@ -918,7 +909,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   } else {
     int16_t mouse_x = 0;
     int16_t mouse_y = 0;
-    if (ParseGyroMouse(report, len, &mouse_x, &mouse_y)) {
+    if (ParseGyroMouse(report, len, touch, &mouse_x, &mouse_y)) {
       // Accumulate across frames so pixels are never lost when the host
       // polls slower than 1000 Hz (e.g. macOS at 125 Hz).
       g_controller.mouse.x = ClampI16(
