@@ -52,6 +52,8 @@ struct ActiveController {
   bool swipe_finger_down;
   uint16_t swipe_start_x;
   uint16_t swipe_current_x;
+  bool keyboard_pending;
+  bool mouse_pending;
   device_out::KeyboardReport keyboard;
   device_out::MouseReport mouse;
 };
@@ -92,6 +94,8 @@ void ClearHidState() {
   g_controller.touchpad_clicked = false;
   g_controller.touchpad_zone = 0;
   g_controller.swipe_finger_down = false;
+  g_controller.keyboard_pending = false;
+  g_controller.mouse_pending = false;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
   memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
 }
@@ -892,8 +896,14 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   mouse_send |= ParseTouchpadClick(report, len, &keyboard_send);
 
   // Single keyboard send covers both button changes and touchpad click zones.
+  // Keep absolute state pending until the device endpoint accepts it; otherwise
+  // a busy IN endpoint could drop a key press or release permanently.
   if (keyboard_send) {
-    device_out::SendKeyboard(g_controller.keyboard);
+    g_controller.keyboard_pending = true;
+  }
+  if (g_controller.keyboard_pending &&
+      device_out::SendKeyboard(g_controller.keyboard)) {
+    g_controller.keyboard_pending = false;
   }
 
   int8_t scroll = 0;
@@ -925,15 +935,19 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
                  g_controller.mouse.wheel != 0);
 
   // Single consolidated mouse send per callback.
+  // Mouse buttons are absolute state, so retry failed sends even when no
+  // relative x/y/wheel data is pending.
   // Clear relative axes only after a successful send — if the endpoint is not
   // ready the values stay accumulated for the next callback.
   if (mouse_send) {
-    if (device_out::SendMouse(g_controller.mouse)) {
-      g_controller.mouse.x = 0;
-      g_controller.mouse.y = 0;
-      g_controller.mouse.wheel = 0;
-      g_controller.mouse.pan = 0;
-    }
+    g_controller.mouse_pending = true;
+  }
+  if (g_controller.mouse_pending && device_out::SendMouse(g_controller.mouse)) {
+    g_controller.mouse_pending = false;
+    g_controller.mouse.x = 0;
+    g_controller.mouse.y = 0;
+    g_controller.mouse.wheel = 0;
+    g_controller.mouse.pan = 0;
   }
   tuh_hid_receive_report(dev_addr, instance);
 }
