@@ -45,6 +45,15 @@ make -j$(nproc)
 
 LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
 
+DualShock 4 output mode is disabled by default. To keep the DS4 code in a test build, enable it at configure time:
+
+```sh
+PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release -DFEATHER_ENABLE_DUALSHOCK4_MODE=ON ..
+make -j$(nproc)
+```
+
+With the default build, the profile switch only cycles KBM and Stadia gamepad mode. With `FEATHER_ENABLE_DUALSHOCK4_MODE=ON`, DualShock 4 mode is included as the third profile.
+
 ## macOS Local Toolchain
 
 Homebrew's `arm-none-eabi-gcc` formula does not include `nosys.specs` or the ARM newlib specs. Install the official ARM GNU Toolchain via the Homebrew cask and run the pkg installer:

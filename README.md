@@ -1,12 +1,13 @@
 # Feather DualSense HID Remapper
 
-Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723. The firmware accepts exactly one wired Sony DualSense or DualSense Edge controller on the USB host port and operates in one of three modes:
+Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723. The firmware accepts exactly one wired Sony DualSense or DualSense Edge controller on the USB host port and operates in one of two default modes:
 
 - **KBM mode** – maps controller buttons to a USB HID keyboard and mouse
 - **Gamepad mode** – emulates a Google Stadia Controller (VID `0x18D1`, PID `0x9400`) as a USB gamepad
-- **DualShock 4 mode** – emulates a Sony DualShock 4 v2 (VID `0x054C`, PID `0x09CC`) as a USB HID gamepad
 
-The active mode is persisted in flash and survives power cycles. Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → DualShock 4 → KBM — the device saves the new mode and reboots.
+An optional **DualShock 4 mode** can be compiled in for future testing. It emulates a Sony DualShock 4 v2 (VID `0x054C`, PID `0x09CC`) as a USB HID gamepad, but is disabled by default.
+
+The active mode is persisted in flash and survives power cycles. Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → KBM. If DualShock 4 mode is compiled in, the cycle becomes KBM → Gamepad → DualShock 4 → KBM. The device saves the new mode and reboots.
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -45,7 +46,7 @@ The Feather enumerates as a single HID gamepad that mimics the Google Stadia Con
 
 ### DualShock 4 mode
 
-The Feather enumerates as a single HID gamepad that mimics a Sony DualShock 4 v2 controller (VID `0x054C`, PID `0x09CC`). Sticks, D-pad, face buttons, shoulders, stick clicks, PS, touchpad click, and analog triggers are forwarded. The DualSense lightbar is purple while this mode is active.
+DualShock 4 mode is optional and is not part of the default build. When `FEATHER_ENABLE_DUALSHOCK4_MODE=ON`, the Feather can enumerate as a single HID gamepad that mimics a Sony DualShock 4 v2 controller (VID `0x054C`, PID `0x09CC`). Sticks, D-pad, face buttons, shoulders, stick clicks, PS, touchpad click, and analog triggers are forwarded. The DualSense lightbar is purple while this mode is active.
 
 ## KBM Mapping
 
@@ -79,7 +80,7 @@ The Feather enumerates as a single HID gamepad that mimics a Sony DualShock 4 v2
 | Right stick | Numpad `1`–`8` |
 | Gyro (while touching touchpad) | Relative mouse X/Y |
 | Touchpad vertical swipe | Scroll wheel |
-| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad → DualShock 4 mode |
+| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad mode |
 
 ### DualSense Edge (additional / different)
 
@@ -132,7 +133,9 @@ Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch
 
-Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM, Gamepad, and DualShock 4 mode. The device saves the new mode to flash and reboots.
+Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM and Gamepad mode. The device saves the new mode to flash and reboots.
+
+If the optional DualShock 4 mode is enabled at compile time, the switch cycle includes it as the third mode. If a firmware build without DualShock 4 support boots with an old saved DualShock 4 mode value in flash, it treats that value as invalid and falls back to KBM mode.
 
 The swipe gesture works in all modes. A second finger on the pad at any point during the swipe cancels it.
 
@@ -159,6 +162,12 @@ cd build
 PICO_BOARD=feather_host cmake ..
 make -j$(nproc)   # Linux
 make -j$(sysctl -n hw.logicalcpu)   # macOS
+```
+
+Optional DualShock 4 output mode can be included with:
+
+```sh
+PICO_BOARD=feather_host cmake -DFEATHER_ENABLE_DUALSHOCK4_MODE=ON ..
 ```
 
 The flashable artifact is:

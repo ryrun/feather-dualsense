@@ -9,7 +9,9 @@ enum ReportId : uint8_t {
   kReportIdKeyboard = 1,
   kReportIdMouse = 2,
   kReportIdGamepad = 3,  // Stadia Controller: Report ID 3
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
   kReportIdDualShock4 = 1,
+#endif
 };
 
 struct KeyboardReport {
@@ -50,6 +52,7 @@ struct GamepadReport {
   uint8_t consumer;
 } __attribute__((packed));
 
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
 // DualShock 4 USB Report ID 1. The first 10 bytes carry the generic gamepad
 // controls; remaining bytes are kept zero-filled for DS4-specific sensors/touch.
 struct DualShock4Report {
@@ -64,13 +67,15 @@ struct DualShock4Report {
   uint8_t right_trigger;
   uint8_t reserved[54];
 } __attribute__((packed));
+#endif
 
 void Init();
 void Task();
 bool SendKeyboard(const KeyboardReport& report);
 bool SendMouse(const MouseReport& report);
 bool SendGamepad(const GamepadReport& report);
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
 bool SendDualShock4(const DualShock4Report& report);
+#endif
 
 }  // namespace device_out
-

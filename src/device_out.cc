@@ -40,6 +40,7 @@ bool SendGamepad(const GamepadReport& report) {
   return tud_hid_n_report(0, kReportIdGamepad, &report, sizeof(report));
 }
 
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
 bool SendDualShock4(const DualShock4Report& report) {
   if (!tud_ready() || !tud_hid_n_ready(0)) {
     return false;
@@ -47,6 +48,7 @@ bool SendDualShock4(const DualShock4Report& report) {
 
   return tud_hid_n_report(0, kReportIdDualShock4, &report, sizeof(report));
 }
+#endif
 
 }  // namespace device_out
 

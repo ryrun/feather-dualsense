@@ -2,12 +2,16 @@
 
 #include <stdint.h>
 
+#include "build_config.h"
+
 namespace mode {
 
 enum class Mode : uint8_t {
   kKeyboardMouse = 0,
   kGamepad = 1,  // Stadia Controller
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
   kDualShock4 = 2,
+#endif
   kCount,
 };
 

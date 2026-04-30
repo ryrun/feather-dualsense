@@ -25,6 +25,7 @@ set_source_files_properties(
 )
 
 option(FEATHER_REMAPPER_DEBUG "Enable verbose UART report logging" OFF)
+option(FEATHER_ENABLE_DUALSHOCK4_MODE "Build the optional DualShock 4 USB output mode" OFF)
 option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" OFF)
 
 add_executable(feather_remapper
@@ -50,6 +51,7 @@ target_compile_definitions(feather_remapper PRIVATE
   BOARD_TUD_RHPORT=0
   BOARD_TUH_RHPORT=1
   FEATHER_REMAPPER_DEBUG=$<BOOL:${FEATHER_REMAPPER_DEBUG}>
+  FEATHER_ENABLE_DUALSHOCK4_MODE=$<BOOL:${FEATHER_ENABLE_DUALSHOCK4_MODE}>
 )
 
 target_compile_options(feather_remapper PRIVATE

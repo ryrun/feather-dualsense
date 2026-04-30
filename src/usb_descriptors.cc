@@ -29,8 +29,10 @@ constexpr uint16_t kUsbPidKbm = 0x4023;
 // Stadia Controller Rev. A: Google VID/PID, macOS GCController recognizes natively.
 constexpr uint16_t kUsbVidGp  = 0x18D1;  // Google LLC
 constexpr uint16_t kUsbPidGp  = 0x9400;  // Stadia Controller
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
 constexpr uint16_t kUsbVidDs4 = 0x054C;  // Sony
 constexpr uint16_t kUsbPidDs4 = 0x09CC;  // DualShock 4 v2
+#endif
 constexpr uint16_t kUsbBcd    = 0x0100;
 
 uint8_t const kDescHidKeyboard[] = {
@@ -231,6 +233,8 @@ uint8_t const kDescConfigGamepad[] = {
 
 // ── DualShock 4 mode ───────────────────────────────────────────────────────
 
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
+
 enum InterfaceNumberDs4 : uint8_t {
   kItfDs4 = 0,
   kItfDs4Total,
@@ -300,6 +304,8 @@ uint8_t const kDescConfigDs4[] = {
                        kEpnDs4, CFG_TUD_HID_EP_BUFSIZE, 4),
 };
 
+#endif
+
 // ── Device descriptors (mode-selected at runtime) ──────────────────────────
 
 tusb_desc_device_t const kDescDeviceKbm = {
@@ -318,6 +324,7 @@ tusb_desc_device_t const kDescDeviceGamepad = {
     0x01, 0x02, 0x03, 0x01,
 };
 
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
 tusb_desc_device_t const kDescDeviceDs4 = {
     sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200,
     0x00, 0x00, 0x00,
@@ -325,6 +332,7 @@ tusb_desc_device_t const kDescDeviceDs4 = {
     kUsbVidDs4, kUsbPidDs4, kUsbBcd,
     0x01, 0x02, 0x03, 0x01,
 };
+#endif
 
 char const* kStringDescriptorsKbm[] = {
     nullptr,
@@ -338,11 +346,13 @@ char const* kStringDescriptorsGamepad[] = {
     "Stadia Controller rev. A",
 };
 
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
 char const* kStringDescriptorsDs4[] = {
     nullptr,
     "Sony Interactive Entertainment",
     "Wireless Controller",
 };
+#endif
 
 uint16_t g_string_desc[32];
 
@@ -352,9 +362,11 @@ extern "C" uint8_t const* tud_descriptor_device_cb() {
   if (mode::GetActive() == mode::Mode::kGamepad) {
     return reinterpret_cast<uint8_t const*>(&kDescDeviceGamepad);
   }
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
   if (mode::GetActive() == mode::Mode::kDualShock4) {
     return reinterpret_cast<uint8_t const*>(&kDescDeviceDs4);
   }
+#endif
   return reinterpret_cast<uint8_t const*>(&kDescDeviceKbm);
 }
 
@@ -363,9 +375,11 @@ extern "C" uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
   if (mode::GetActive() == mode::Mode::kGamepad) {
     return kDescConfigGamepad;
   }
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
   if (mode::GetActive() == mode::Mode::kDualShock4) {
     return kDescConfigDs4;
   }
+#endif
   return kDescConfigKbm;
 }
 
@@ -373,9 +387,11 @@ extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
   if (mode::GetActive() == mode::Mode::kGamepad) {
     return kDescHidGamepad;
   }
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
   if (mode::GetActive() == mode::Mode::kDualShock4) {
     return kDescHidDs4;
   }
+#endif
   return instance == 0 ? kDescHidKeyboard : kDescHidMouse;
 }
 
@@ -388,10 +404,13 @@ extern "C" uint16_t const* tud_descriptor_string_cb(uint8_t index,
   if (mode::GetActive() == mode::Mode::kGamepad) {
     descs = kStringDescriptorsGamepad;
     descs_len = sizeof(kStringDescriptorsGamepad) / sizeof(kStringDescriptorsGamepad[0]);
-  } else if (mode::GetActive() == mode::Mode::kDualShock4) {
+  }
+#if FEATHER_ENABLE_DUALSHOCK4_MODE
+  else if (mode::GetActive() == mode::Mode::kDualShock4) {
     descs = kStringDescriptorsDs4;
     descs_len = sizeof(kStringDescriptorsDs4) / sizeof(kStringDescriptorsDs4[0]);
   }
+#endif
 
   uint8_t chr_count = 0;
 
