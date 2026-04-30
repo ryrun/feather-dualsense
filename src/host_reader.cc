@@ -38,6 +38,7 @@ struct ActiveController {
   // Updated only when not touching and all 3 axes are still.
   int32_t gyro_bias_x_q8;
   int32_t gyro_bias_y_q8;
+  int32_t gyro_bias_z_q8;
   bool touch0_active;
   uint8_t touch0_id;
   int16_t touch0_last_y;
@@ -99,6 +100,7 @@ void ClearHidState() {
   g_controller.gyro_mouse_y_remainder_q16 = 0;
   g_controller.gyro_bias_x_q8 = 0;
   g_controller.gyro_bias_y_q8 = 0;
+  g_controller.gyro_bias_z_q8 = 0;
   g_controller.touch0_active = false;
   g_controller.touch0_scroll_accum = 0;
   g_controller.touch1_active = false;
@@ -354,9 +356,10 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch
 
   const int16_t bias_x = static_cast<int16_t>(g_controller.gyro_bias_x_q8 >> 8);
   const int16_t bias_y = static_cast<int16_t>(g_controller.gyro_bias_y_q8 >> 8);
+  const int16_t bias_z = static_cast<int16_t>(g_controller.gyro_bias_z_q8 >> 8);
   const int16_t corrected_x = gyro_for_x - bias_x;
   const int16_t corrected_y = gyro_for_y - bias_y;
-  const int16_t corrected_z = gyro_raw_z - bias_x;  // roll — no own bias, use x as proxy
+  const int16_t corrected_z = gyro_raw_z - bias_z;
 
   // Continuous bias update via slow EMA (alpha≈0.0025, ~0.4s time constant at
   // 1000 Hz) — only when NOT touching and all 3 axes are still. This prevents
@@ -371,6 +374,8 @@ bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch
         ((static_cast<int32_t>(gyro_for_x) << 8) - g_controller.gyro_bias_x_q8) / 400;
     g_controller.gyro_bias_y_q8 +=
         ((static_cast<int32_t>(gyro_for_y) << 8) - g_controller.gyro_bias_y_q8) / 400;
+    g_controller.gyro_bias_z_q8 +=
+        ((static_cast<int32_t>(gyro_raw_z) << 8) - g_controller.gyro_bias_z_q8) / 400;
   }
 
   if (!touching) {
