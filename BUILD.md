@@ -83,7 +83,9 @@ make -j$(sysctl -n hw.ncpu)
 2. Connect the Feather device USB port to the PC.
 3. Connect a wired DualSense or DualSense Edge to the Feather USB host Type-A port.
 4. Confirm the PC sees a keyboard and mouse.
-5. Press Cross for left click, Circle for right click, Square for `Q`, Triangle for `E`.
+5. Press Cross for `F`, Circle for `V`, Square for `R`, Triangle for `T`.
+6. Press L2 for right mouse button and R2 for left mouse button.
+7. Touch the touchpad and move the controller to confirm gyro mouse movement.
 
 ## Linux HID Inspection
 
