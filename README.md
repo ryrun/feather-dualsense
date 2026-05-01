@@ -11,6 +11,16 @@ The active mode is persisted in flash and survives power cycles. Perform a **ful
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
+## Motivation
+
+The project started from the idea of making a wired DualSense or DualSense Edge feel like an Input Labs Alpakka-style gyro controller, using the Adafruit Feather RP2040 USB Host as a small standalone adapter. In this repository, "DualPakka" refers to that idea: PlayStation controller hardware with touch-activated gyro-to-mouse output and keyboard/mouse button mappings.
+
+In KBM mode, touching the DualSense touchpad enables gyro aiming and sends gyro movement as relative mouse input. The rest of the controller is mapped to keyboard and mouse actions, so games see a regular keyboard and mouse instead of a controller. This avoids PC-side mapper software such as Steam Input or reWASD.
+
+Responsiveness is a core design goal. The firmware forces the DualSense input endpoint to 1 ms and exposes 1 ms HID output reports, targeting a direct 1000 Hz input-to-output path.
+
+A separate gamepad mode is included for games where native controller input works better and gyro is not useful, such as racing games. It emulates a Google Stadia Controller because that profile works reliably for the author's macOS cloud gaming setup with Shadow PC and GeForce Now. It avoids PlayStation-controller mapping issues in Shadow PC when USB forwarding is not used, and avoids XInput-style duplicate-controller detection through SDL2. Rumble and DualSense-specific features are intentionally out of scope.
+
 ## Hardware
 
 - Target board: Adafruit Feather RP2040 USB Host, Type A, 5723
