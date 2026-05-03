@@ -39,6 +39,10 @@ struct ActiveController {
   uint64_t buttons;
   int32_t gyro_mouse_x_remainder_q16;
   int32_t gyro_mouse_y_remainder_q16;
+#if GYRO_STICK_PROFILE_ENABLE
+  int32_t gyro_stick_x_pulse_q16;
+  int32_t gyro_stick_y_pulse_q16;
+#endif
   // Gyro bias in Q8 (fractional precision for slow EMA updates).
   // Updated only when not touching and all 3 axes are still.
   int32_t gyro_bias_x_q8;
@@ -111,6 +115,10 @@ void ClearHidState() {
   g_controller.buttons = 0;
   g_controller.gyro_mouse_x_remainder_q16 = 0;
   g_controller.gyro_mouse_y_remainder_q16 = 0;
+#if GYRO_STICK_PROFILE_ENABLE
+  g_controller.gyro_stick_x_pulse_q16 = 0;
+  g_controller.gyro_stick_y_pulse_q16 = 0;
+#endif
   g_controller.gyro_bias_x_q8 = 0;
   g_controller.gyro_bias_y_q8 = 0;
   g_controller.gyro_bias_z_q8 = 0;
@@ -175,8 +183,10 @@ void QueueModeLightbar(mode::Mode active_mode) {
     QueueLightbar(255, 200, 0);  // yellow
   } else if (active_mode == mode::Mode::kHybrid) {
     QueueLightbar(160, 0, 255);  // purple
+#if GYRO_STICK_PROFILE_ENABLE
   } else if (active_mode == mode::Mode::kGyroStick) {
     QueueLightbar(0, 255, 0);    // green
+#endif
   } else {
     QueueLightbar(0, 0, 255);    // blue
   }
@@ -361,6 +371,7 @@ int16_t ConsumeMouseDelta(int32_t delta_q16, int32_t* remainder_q16) {
   return clamped;
 }
 
+#if GYRO_STICK_PROFILE_ENABLE
 uint8_t StickAxisFromDeflection(int32_t deflection) {
   if (deflection > 127) {
     deflection = 127;
@@ -369,6 +380,68 @@ uint8_t StickAxisFromDeflection(int32_t deflection) {
   }
   return static_cast<uint8_t>(128 + deflection);
 }
+#endif
+
+#if GYRO_STICK_PROFILE_ENABLE && !GYRO_STICK_DEADZONE_PULSE_ENABLE
+int32_t ApplyStickDeadzoneSkip(int32_t deflection) {
+  if (deflection == 0) {
+    return 0;
+  }
+
+  constexpr int32_t kMaxDeflection = 127;
+  constexpr int32_t kDeadzone =
+      (kMaxDeflection * GYRO_STICK_DEADZONE_SKIP_PERCENT + 99) / 100;
+  const int32_t sign = (deflection < 0) ? -1 : 1;
+  int32_t magnitude = Abs32(deflection);
+  if (magnitude > kMaxDeflection) {
+    magnitude = kMaxDeflection;
+  }
+
+  const int32_t remapped =
+      kDeadzone +
+      ((magnitude * (kMaxDeflection - kDeadzone) + (kMaxDeflection / 2)) /
+       kMaxDeflection);
+  return sign * remapped;
+}
+#endif
+
+#if GYRO_STICK_PROFILE_ENABLE
+int32_t ApplyStickDeadzonePulse(int32_t deflection, int32_t* pulse_q16) {
+  constexpr int32_t kMaxDeflection = 127;
+  constexpr int32_t kDeadzone =
+      (kMaxDeflection * GYRO_STICK_DEADZONE_SKIP_PERCENT + 99) / 100;
+  constexpr int32_t kPulseDeflection =
+      (kDeadzone >= kMaxDeflection) ? kMaxDeflection : (kDeadzone + 1);
+
+  if (deflection == 0) {
+    *pulse_q16 = 0;
+    return 0;
+  }
+
+  const int32_t sign = (deflection < 0) ? -1 : 1;
+  int32_t magnitude = Abs32(deflection);
+  if (magnitude > kMaxDeflection) {
+    magnitude = kMaxDeflection;
+  }
+
+  if (magnitude >= kDeadzone || kDeadzone <= 0) {
+    *pulse_q16 = 0;
+    return sign * magnitude;
+  }
+
+#if GYRO_STICK_DEADZONE_PULSE_ENABLE
+  *pulse_q16 += (magnitude << 16) / kDeadzone;
+  if (*pulse_q16 >= (1 << 16)) {
+    *pulse_q16 -= (1 << 16);
+    return sign * kPulseDeflection;
+  }
+  return 0;
+#else
+  (void)pulse_q16;
+  return ApplyStickDeadzoneSkip(deflection);
+#endif
+}
+#endif
 
 TouchState ParseTouchState(uint8_t const* report, uint16_t len) {
   TouchState touch = {};
@@ -469,6 +542,7 @@ bool ProcessGyroMouse(uint8_t const* report, uint16_t len, const TouchState& tou
   return true;
 }
 
+#if GYRO_STICK_PROFILE_ENABLE
 bool ParseGyroRightStick(uint8_t const* report, uint16_t len,
                          const TouchState& touch,
                          uint8_t* stick_x, uint8_t* stick_y) {
@@ -511,6 +585,8 @@ bool ParseGyroRightStick(uint8_t const* report, uint16_t len,
   }
 
   if (!touching) {
+    g_controller.gyro_stick_x_pulse_q16 = 0;
+    g_controller.gyro_stick_y_pulse_q16 = 0;
     return false;
   }
 
@@ -535,8 +611,12 @@ bool ParseGyroRightStick(uint8_t const* report, uint16_t len,
   const int32_t stick_y_deflection =
       static_cast<int32_t>((static_cast<int64_t>(stick_y_scaled) * kYFactorQ16) >> 16);
 
-  *stick_x = StickAxisFromDeflection(stick_x_deflection);
-  *stick_y = StickAxisFromDeflection(stick_y_deflection);
+  *stick_x = StickAxisFromDeflection(
+      ApplyStickDeadzonePulse(stick_x_deflection,
+                              &g_controller.gyro_stick_x_pulse_q16));
+  *stick_y = StickAxisFromDeflection(
+      ApplyStickDeadzonePulse(stick_y_deflection,
+                              &g_controller.gyro_stick_y_pulse_q16));
   return true;
 #else
   (void)report;
@@ -547,6 +627,7 @@ bool ParseGyroRightStick(uint8_t const* report, uint16_t len,
   return false;
 #endif
 }
+#endif
 
 bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch,
                     int16_t* mouse_x, int16_t* mouse_y) {
@@ -741,6 +822,10 @@ void HandleModeSwitch() {
   g_controller.buttons = 0;
   g_controller.gyro_mouse_x_remainder_q16 = 0;
   g_controller.gyro_mouse_y_remainder_q16 = 0;
+#if GYRO_STICK_PROFILE_ENABLE
+  g_controller.gyro_stick_x_pulse_q16 = 0;
+  g_controller.gyro_stick_y_pulse_q16 = 0;
+#endif
   g_controller.touchpad_clicked = false;
   g_controller.touchpad_zone = 0;
 
@@ -1028,10 +1113,12 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   return gp;
 }
 
+#if GYRO_STICK_PROFILE_ENABLE
 void SetGamepadRightStick(device_out::GamepadReport* gp, uint8_t x, uint8_t y) {
   gp->right_x = x;
   gp->right_y = y;
 }
+#endif
 
 // Layout mirrors struct dualsense_output_report from hid-playstation.c:
 //   byte  1 = valid_flag1 (0x04 = lightbar control enable)
@@ -1173,20 +1260,25 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   FlushPendingOutputs();
 
   if (g_controller.active_mode == mode::Mode::kGamepad ||
-      g_controller.active_mode == mode::Mode::kHybrid ||
-      g_controller.active_mode == mode::Mode::kGyroStick) {
+      g_controller.active_mode == mode::Mode::kHybrid
+#if GYRO_STICK_PROFILE_ENABLE
+      || g_controller.active_mode == mode::Mode::kGyroStick
+#endif
+      ) {
     g_controller.gamepad = ParseForGamepad(report, len, raw_buttons);
     g_controller.gamepad_pending = true;
 
     if (g_controller.active_mode == mode::Mode::kHybrid &&
         ProcessGyroMouse(report, len, touch)) {
       g_controller.mouse_pending = true;
+#if GYRO_STICK_PROFILE_ENABLE
     } else if (g_controller.active_mode == mode::Mode::kGyroStick) {
       uint8_t stick_x = 0x80;
       uint8_t stick_y = 0x80;
       if (ParseGyroRightStick(report, len, touch, &stick_x, &stick_y)) {
         SetGamepadRightStick(&g_controller.gamepad, stick_x, stick_y);
       }
+#endif
     }
 
     FlushPendingOutputs();

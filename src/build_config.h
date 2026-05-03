@@ -18,8 +18,17 @@
 #define GYRO_MOUSE_SENSITIVITY_Q16 (-171)
 // Y axis scale factor relative to X (applied as integer Q16 at compile time).
 #define GYRO_MOUSE_Y_FACTOR 0.7f
+
+#ifndef GYRO_STICK_PROFILE_ENABLE
+#define GYRO_STICK_PROFILE_ENABLE 0
+#endif
+
 // Gyro-to-right-stick sensitivity in Q8. Negative matches mouse X direction.
 #define GYRO_STICK_SENSITIVITY_Q8 (-64)
+// Assumed game right-stick deadzone, as percent of full deflection.
+#define GYRO_STICK_DEADZONE_SKIP_PERCENT 50
+// Pulse gyro movement below the assumed deadzone instead of dropping it.
+#define GYRO_STICK_DEADZONE_PULSE_ENABLE 1
 
 #define TOUCHPAD_SCROLL_ENABLE 1
 #define TOUCHPAD_SCROLL_THRESHOLD 100

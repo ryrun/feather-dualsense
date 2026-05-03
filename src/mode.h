@@ -10,7 +10,9 @@ enum class Mode : uint8_t {
   kKeyboardMouse = 0,
   kGamepad = 1,    // Gamepad backend
   kHybrid = 2,     // Gamepad backend + touch-activated gyro mouse
+#if GYRO_STICK_PROFILE_ENABLE
   kGyroStick = 3,  // Gamepad backend + touch-activated gyro right stick
+#endif
   kCount,
 };
 
