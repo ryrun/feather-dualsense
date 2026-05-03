@@ -1026,6 +1026,14 @@ bool ProcessButtons(uint64_t next_buttons, bool* keyboard_changed) {
   return mouse_changed;
 }
 
+bool ProcessHybridKeyboardButtons(uint64_t raw_buttons) {
+  bool keyboard_changed = false;
+  constexpr uint64_t kHybridKeyboardButtons =
+      mapping::ButtonMask(mapping::Button::kMute);
+  ProcessButtons(raw_buttons & kHybridKeyboardButtons, &keyboard_changed);
+  return keyboard_changed;
+}
+
 }  // namespace
 
 // Builds the selected gamepad backend HID report from a DualSense input.
@@ -1282,6 +1290,11 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
       ) {
     g_controller.gamepad = ParseForGamepad(report, len, raw_buttons);
     g_controller.gamepad_pending = true;
+
+    if (g_controller.active_mode == mode::Mode::kHybrid &&
+        ProcessHybridKeyboardButtons(raw_buttons)) {
+      g_controller.keyboard_pending = true;
+    }
 
     if (g_controller.active_mode == mode::Mode::kHybrid &&
         ProcessGyroMouse(report, len, touch)) {

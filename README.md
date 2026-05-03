@@ -62,7 +62,7 @@ The Feather enumerates only a gamepad HID interface that mimics the selected gam
 
 ### Hybrid profile
 
-Hybrid profile enumerates keyboard, mouse, and gamepad HID interfaces. It uses the same gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard actions in this profile yet, but the keyboard interface is present for future hybrid mappings.
+Hybrid profile enumerates keyboard, mouse, and gamepad HID interfaces. It uses the same gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Pressing the Mute button sends `F12` in this profile for screenshot shortcuts. Other controller buttons are not mapped to keyboard actions yet, but the keyboard interface is present for future hybrid mappings.
 
 On macOS, Hybrid profile currently works with the Stadia backend only. The DualShock 4 firmware can still be built, but its mixed mouse+gamepad Hybrid profile does not work reliably on macOS at this time.
 

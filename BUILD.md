@@ -91,7 +91,7 @@ make -j$(sysctl -n hw.ncpu)
 6. Press L2 for right mouse button and R2 for left mouse button.
 7. Touch the touchpad and move the controller to confirm gyro mouse movement.
 8. Perform a left-to-right full-width touchpad swipe and confirm the board reboots and re-enumerates as the gamepad profile.
-9. Perform another left-to-right full-width touchpad swipe and confirm the board reboots into the purple hybrid profile, sending gamepad input plus touch-activated gyro mouse.
+9. Perform another left-to-right full-width touchpad swipe and confirm the board reboots into the purple hybrid profile, sending gamepad input plus touch-activated gyro mouse. Press Mute and confirm it sends `F12`.
 10. Perform a right-to-left full-width touchpad swipe and confirm the device switches back to gamepad profile.
 11. If `FEATHER_GYRO_STICK_PROFILE=ON` was configured, switch forward to the green gyro-stick profile and confirm it sends gamepad input plus touch-activated gyro right-stick output.
 
