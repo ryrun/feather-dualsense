@@ -5,35 +5,30 @@
 #include "build_config.h"
 #include "class/hid/hid.h"
 #include "device_out.h"
-#include "mode.h"
 #include "pico/unique_id.h"
 #include "tusb.h"
 
 namespace {
 
-// ── Keyboard/mouse mode ────────────────────────────────────────────────────
+// ── Composite keyboard/mouse/gamepad output ────────────────────────────────
 
-enum InterfaceNumberKbm : uint8_t {
+enum InterfaceNumber : uint8_t {
   kItfKeyboard = 0,
   kItfMouse,
-  kItfKbmTotal,
+  kItfGamepad,
+  kItfTotal,
 };
 
-enum EndpointAddressKbm : uint8_t {
+enum EndpointAddress : uint8_t {
   kEpnKeyboard = 0x81,
   kEpnMouse = 0x82,
+  kEpnGamepad = 0x83,
 };
 
-constexpr uint16_t kUsbVid    = 0xCafe;
-constexpr uint16_t kUsbPidKbm = 0x4023;
 // Stadia Controller Rev. A: Google VID/PID, macOS GCController recognizes natively.
-constexpr uint16_t kUsbVidGp  = 0x18D1;  // Google LLC
-constexpr uint16_t kUsbPidGp  = 0x9400;  // Stadia Controller
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-constexpr uint16_t kUsbVidDs4 = 0x054C;  // Sony
-constexpr uint16_t kUsbPidDs4 = 0x09CC;  // DualShock 4 v2
-#endif
-constexpr uint16_t kUsbBcd    = 0x0100;
+constexpr uint16_t kUsbVid = 0x18D1;  // Google LLC
+constexpr uint16_t kUsbPid = 0x9400;  // Stadia Controller
+constexpr uint16_t kUsbBcd = 0x0100;
 
 uint8_t const kDescHidKeyboard[] = {
     0x05, 0x01,                                  // Usage Page (Generic Desktop)
@@ -105,30 +100,8 @@ uint8_t const kDescHidMouse[] = {
     0xC0,                               // End Collection
 };
 
-uint8_t const kDescConfigKbm[] = {
-    TUD_CONFIG_DESCRIPTOR(1, kItfKbmTotal, 0,
-                          TUD_CONFIG_DESC_LEN + 2 * TUD_HID_DESC_LEN,
-                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-    TUD_HID_DESCRIPTOR(kItfKeyboard, 0, HID_ITF_PROTOCOL_NONE,
-                       sizeof(kDescHidKeyboard),
-                       kEpnKeyboard, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
-    TUD_HID_DESCRIPTOR(kItfMouse, 0, HID_ITF_PROTOCOL_NONE,
-                       sizeof(kDescHidMouse),
-                       kEpnMouse, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
-};
+// ── Gamepad interface ──────────────────────────────────────────────────────
 
-// ── Gamepad mode ───────────────────────────────────────────────────────────
-
-enum InterfaceNumberGp : uint8_t {
-  kItfGamepad = 0,
-  kItfGpTotal,
-};
-
-enum EndpointAddressGp : uint8_t {
-  kEpnGamepad = 0x81,
-};
-
-// Nintendo Switch Pro Controller USB HID descriptor.
 // Exact Stadia Controller Rev. A HID descriptor.
 // Report ID 3, 10-byte input payload:
 //   [0] hat(4)+pad(4)  [1] buttons1  [2] buttons2(6)+pad  [3-6] LX/LY/RX/RY
@@ -222,10 +195,16 @@ uint8_t const kDescHidGamepad[] = {
     0xC0,                          // End Collection
 };
 
-uint8_t const kDescConfigGamepad[] = {
-    TUD_CONFIG_DESCRIPTOR(1, kItfGpTotal, 0,
-                          TUD_CONFIG_DESC_LEN + 1 * TUD_HID_DESC_LEN,
+uint8_t const kDescConfig[] = {
+    TUD_CONFIG_DESCRIPTOR(1, kItfTotal, 0,
+                          TUD_CONFIG_DESC_LEN + 3 * TUD_HID_DESC_LEN,
                           TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_HID_DESCRIPTOR(kItfKeyboard, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidKeyboard),
+                       kEpnKeyboard, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(kItfMouse, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidMouse),
+                       kEpnMouse, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
     TUD_HID_DESCRIPTOR(kItfGamepad, 0, HID_ITF_PROTOCOL_NONE,
                        sizeof(kDescHidGamepad),
                        kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
@@ -308,19 +287,11 @@ uint8_t const kDescConfigDs4[] = {
 
 // ── Device descriptors (mode-selected at runtime) ──────────────────────────
 
-tusb_desc_device_t const kDescDeviceKbm = {
+tusb_desc_device_t const kDescDevice = {
     sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200,
     0x00, 0x00, 0x00,
     CFG_TUD_ENDPOINT0_SIZE,
-    kUsbVid, kUsbPidKbm, kUsbBcd,
-    0x01, 0x02, 0x03, 0x01,
-};
-
-tusb_desc_device_t const kDescDeviceGamepad = {
-    sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200,
-    0x00, 0x00, 0x00,
-    CFG_TUD_ENDPOINT0_SIZE,
-    kUsbVidGp, kUsbPidGp, kUsbBcd,
+    kUsbVid, kUsbPid, kUsbBcd,
     0x01, 0x02, 0x03, 0x01,
 };
 
@@ -334,16 +305,10 @@ tusb_desc_device_t const kDescDeviceDs4 = {
 };
 #endif
 
-char const* kStringDescriptorsKbm[] = {
-    nullptr,
-    "feather-dualsense",
-    "DualSense HID Remapper",
-};
-
-char const* kStringDescriptorsGamepad[] = {
+char const* kStringDescriptors[] = {
     nullptr,
     "Google LLC",
-    "Stadia Controller rev. A",
+    "DualPakka Composite Remapper",
 };
 
 #if FEATHER_ENABLE_DUALSHOCK4_MODE
@@ -359,58 +324,33 @@ uint16_t g_string_desc[32];
 }  // namespace
 
 extern "C" uint8_t const* tud_descriptor_device_cb() {
-  if (mode::GetActive() == mode::Mode::kGamepad) {
-    return reinterpret_cast<uint8_t const*>(&kDescDeviceGamepad);
-  }
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  if (mode::GetActive() == mode::Mode::kDualShock4) {
-    return reinterpret_cast<uint8_t const*>(&kDescDeviceDs4);
-  }
-#endif
-  return reinterpret_cast<uint8_t const*>(&kDescDeviceKbm);
+  return reinterpret_cast<uint8_t const*>(&kDescDevice);
 }
 
 extern "C" uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
   (void)index;
-  if (mode::GetActive() == mode::Mode::kGamepad) {
-    return kDescConfigGamepad;
-  }
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  if (mode::GetActive() == mode::Mode::kDualShock4) {
-    return kDescConfigDs4;
-  }
-#endif
-  return kDescConfigKbm;
+  return kDescConfig;
 }
 
 extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
-  if (mode::GetActive() == mode::Mode::kGamepad) {
-    return kDescHidGamepad;
+  switch (instance) {
+    case kItfKeyboard:
+      return kDescHidKeyboard;
+    case kItfMouse:
+      return kDescHidMouse;
+    case kItfGamepad:
+      return kDescHidGamepad;
+    default:
+      return nullptr;
   }
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  if (mode::GetActive() == mode::Mode::kDualShock4) {
-    return kDescHidDs4;
-  }
-#endif
-  return instance == 0 ? kDescHidKeyboard : kDescHidMouse;
 }
 
 extern "C" uint16_t const* tud_descriptor_string_cb(uint8_t index,
                                                       uint16_t langid) {
   (void)langid;
 
-  char const** descs = kStringDescriptorsKbm;
-  size_t descs_len = sizeof(kStringDescriptorsKbm) / sizeof(kStringDescriptorsKbm[0]);
-  if (mode::GetActive() == mode::Mode::kGamepad) {
-    descs = kStringDescriptorsGamepad;
-    descs_len = sizeof(kStringDescriptorsGamepad) / sizeof(kStringDescriptorsGamepad[0]);
-  }
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  else if (mode::GetActive() == mode::Mode::kDualShock4) {
-    descs = kStringDescriptorsDs4;
-    descs_len = sizeof(kStringDescriptorsDs4) / sizeof(kStringDescriptorsDs4[0]);
-  }
-#endif
+  char const** descs = kStringDescriptors;
+  size_t descs_len = sizeof(kStringDescriptors) / sizeof(kStringDescriptors[0]);
 
   uint8_t chr_count = 0;
 

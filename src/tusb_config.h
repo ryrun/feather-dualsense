@@ -14,9 +14,8 @@ extern "C" {
 
 #define CFG_TUD_ENABLED 1
 #define CFG_TUD_ENDPOINT0_SIZE 64
-// Maximum HID interfaces across all runtime-selected USB configurations.
-// KBM mode exposes keyboard + mouse; gamepad mode uses only instance 0.
-#define CFG_TUD_HID 2
+// Composite output exposes keyboard, mouse, and Stadia gamepad interfaces.
+#define CFG_TUD_HID 3
 #define CFG_TUD_CDC 0
 #define CFG_TUD_MSC 0
 #define CFG_TUD_MIDI 0

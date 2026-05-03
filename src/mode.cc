@@ -4,7 +4,6 @@
 
 #include "hardware/flash.h"
 #include "hardware/sync.h"
-#include "hardware/watchdog.h"
 #include "pico/stdlib.h"
 
 namespace {
@@ -49,15 +48,17 @@ Mode GetActive() {
   return g_active_mode;
 }
 
-[[noreturn]] void ToggleAndReboot() {
+Mode ToggleRuntime() {
   const uint8_t next =
       (static_cast<uint8_t>(g_active_mode) + 1) % static_cast<uint8_t>(Mode::kCount);
-  const Mode new_mode = static_cast<Mode>(next);
+  g_active_mode = static_cast<Mode>(next);
+  return g_active_mode;
+}
+
+Mode ToggleAndSave() {
+  const Mode new_mode = ToggleRuntime();
   WriteModeToFlash(new_mode);
-  watchdog_enable(10, false);
-  while (true) {
-    tight_loop_contents();
-  }
+  return g_active_mode;
 }
 
 }  // namespace mode

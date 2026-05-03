@@ -1,13 +1,18 @@
 # Feather DualSense HID Remapper
 
-Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723. The firmware accepts exactly one wired Sony DualSense or DualSense Edge controller on the USB host port and operates in one of two default modes:
+Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723. The firmware accepts exactly one wired Sony DualSense or DualSense Edge controller on the USB host port and exposes a composite USB HID device to the PC:
 
-- **KBM mode** – maps controller buttons to a USB HID keyboard and mouse
-- **Gamepad mode** – emulates a Google Stadia Controller (VID `0x18D1`, PID `0x9400`) as a USB gamepad
+- USB HID keyboard
+- USB HID mouse
+- Google Stadia Controller compatible USB HID gamepad (VID `0x18D1`, PID `0x9400`)
 
-An optional **DualShock 4 mode** can be compiled in for future testing. It emulates a Sony DualShock 4 v2 (VID `0x054C`, PID `0x09CC`) as a USB HID gamepad, but is disabled by default.
+The active logical profile controls which reports are sent:
 
-The active mode is persisted in flash and survives power cycles. Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → KBM. If DualShock 4 mode is compiled in, the cycle becomes KBM → Gamepad → DualShock 4 → KBM. The device saves the new mode and reboots.
+- **KBM profile** – maps controller buttons to keyboard and mouse reports
+- **Gamepad profile** – forwards controller state as Stadia Controller gamepad reports
+- **Hybrid profile** – forwards Stadia Controller gamepad reports and adds touch-activated gyro mouse
+
+Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → Hybrid → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile persistence is temporarily disabled while runtime switching is being tested.
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -43,20 +48,20 @@ All other USB devices are ignored.
 
 ## HID Output
 
-### KBM mode
+### KBM profile
 
-The Feather enumerates as a composite HID device with two interfaces:
+The Feather sends keyboard and mouse reports through the composite HID device:
 
 - **Keyboard**: 14KRO keyboard report
 - **Mouse**: relative mouse with 16-bit signed X/Y axes
 
-### Gamepad mode
+### Gamepad profile
 
-The Feather enumerates as a single HID gamepad that mimics the Google Stadia Controller USB HID descriptor (VID `0x18D1`, PID `0x9400`). Analog sticks, D-pad hat, and all digital buttons are forwarded.
+The Feather sends gamepad reports through a HID interface that mimics the Google Stadia Controller USB HID descriptor (VID `0x18D1`, PID `0x9400`). Analog sticks, D-pad hat, and all digital buttons are forwarded.
 
-### DualShock 4 mode
+### Hybrid profile
 
-DualShock 4 mode is optional and is not part of the default build. When `FEATHER_ENABLE_DUALSHOCK4_MODE=ON`, the Feather can enumerate as a single HID gamepad that mimics a Sony DualShock 4 v2 controller (VID `0x054C`, PID `0x09CC`). Sticks, D-pad, face buttons, shoulders, stick clicks, PS, touchpad click, and analog triggers are forwarded. The DualSense lightbar is purple while this mode is active.
+Hybrid profile uses the same Stadia Controller gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard or mouse actions in this profile.
 
 ## KBM Mapping
 
@@ -90,7 +95,7 @@ DualShock 4 mode is optional and is not part of the default build. When `FEATHER
 | Right stick | Numpad `1`–`8` |
 | Gyro (while touching touchpad) | Relative mouse X/Y |
 | Touchpad vertical swipe | Scroll wheel |
-| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad mode |
+| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad → Hybrid profile |
 
 ### DualSense Edge (additional / different)
 
@@ -143,11 +148,9 @@ Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch
 
-Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM and Gamepad mode. The device saves the new mode to flash and reboots.
+Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM, Gamepad, and Hybrid profile. The device switches immediately without rebooting.
 
-If the optional DualShock 4 mode is enabled at compile time, the switch cycle includes it as the third mode. If a firmware build without DualShock 4 support boots with an old saved DualShock 4 mode value in flash, it treats that value as invalid and falls back to KBM mode.
-
-The swipe gesture works in all modes. A second finger on the pad at any point during the swipe cancels it.
+The swipe gesture works in all profiles. A second finger on the pad at any point during the swipe cancels it.
 
 ## Local Build
 
@@ -174,11 +177,7 @@ make -j$(nproc)   # Linux
 make -j$(sysctl -n hw.logicalcpu)   # macOS
 ```
 
-Optional DualShock 4 output mode can be included with:
-
-```sh
-PICO_BOARD=feather_host cmake -DFEATHER_ENABLE_DUALSHOCK4_MODE=ON ..
-```
+DualShock 4 output mode is not supported by this composite HID experiment branch.
 
 The flashable artifact is:
 
@@ -195,10 +194,7 @@ Put the Feather into BOOTSEL mode and copy the UF2 file to the mounted RP2040 ma
 Check that the Feather enumerates correctly:
 
 ```sh
-# KBM mode  — expect composite keyboard + mouse
-lsusb -v -d cafe:4023
-
-# Gamepad mode — expect Stadia Controller
+# Composite mode — expect keyboard, mouse, and Stadia Controller HID interfaces
 lsusb -v -d 18d1:9400
 ```
 

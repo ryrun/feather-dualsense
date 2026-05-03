@@ -33,11 +33,11 @@ bool SendMouse(const MouseReport& report) {
 }
 
 bool SendGamepad(const GamepadReport& report) {
-  if (!tud_ready() || !tud_hid_n_ready(0)) {
+  if (!tud_ready() || !tud_hid_n_ready(2)) {
     return false;
   }
 
-  return tud_hid_n_report(0, kReportIdGamepad, &report, sizeof(report));
+  return tud_hid_n_report(2, kReportIdGamepad, &report, sizeof(report));
 }
 
 #if FEATHER_ENABLE_DUALSHOCK4_MODE

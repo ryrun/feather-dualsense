@@ -45,14 +45,9 @@ make -j$(nproc)
 
 LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
 
-DualShock 4 output mode is disabled by default. To keep the DS4 code in a test build, enable it at configure time:
+This composite HID experiment supports KBM, Stadia gamepad, and hybrid gamepad+gyro-mouse profiles. DualShock 4 output mode is intentionally disabled on this branch.
 
-```sh
-PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release -DFEATHER_ENABLE_DUALSHOCK4_MODE=ON ..
-make -j$(nproc)
-```
-
-With the default build, the profile switch only cycles KBM and Stadia gamepad mode. With `FEATHER_ENABLE_DUALSHOCK4_MODE=ON`, DualShock 4 mode is included as the third profile.
+Profile persistence is temporarily disabled on this branch while runtime switching is being tested. The saved flash profile is still read on boot, but swipe changes are RAM-only.
 
 ## macOS Local Toolchain
 
@@ -86,12 +81,14 @@ make -j$(sysctl -n hw.ncpu)
 5. Press Cross for `F`, Circle for `V`, Square for `R`, Triangle for `T`.
 6. Press L2 for right mouse button and R2 for left mouse button.
 7. Touch the touchpad and move the controller to confirm gyro mouse movement.
+8. Perform a full-width touchpad swipe and confirm the device switches to gamepad profile without USB re-enumeration.
+9. Perform a second full-width touchpad swipe and confirm the purple hybrid profile sends gamepad input plus touch-activated gyro mouse.
 
 ## Linux HID Inspection
 
 ```sh
 lsusb
-lsusb -v -d cafe:4023
+lsusb -v -d 18d1:9400
 sudo usbhid-dump
 sudo modprobe usbmon
 sudo wireshark

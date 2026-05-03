@@ -28,6 +28,10 @@ option(FEATHER_REMAPPER_DEBUG "Enable verbose UART report logging" OFF)
 option(FEATHER_ENABLE_DUALSHOCK4_MODE "Build the optional DualShock 4 USB output mode" OFF)
 option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" OFF)
 
+if(FEATHER_ENABLE_DUALSHOCK4_MODE)
+  message(FATAL_ERROR "DualShock 4 mode is not supported by the composite HID experiment branch")
+endif()
+
 add_executable(feather_remapper
   src/main.cc
   src/mode.cc
