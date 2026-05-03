@@ -25,9 +25,14 @@ enum EndpointAddress : uint8_t {
   kEpnGamepad = 0x83,
 };
 
-// Stadia Controller Rev. A: Google VID/PID, macOS GCController recognizes natively.
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+constexpr uint16_t kUsbVid = 0x054C;  // Sony
+constexpr uint16_t kUsbPid = 0x09CC;  // DualShock 4 v2
+#else
+// Google/Stadia VID/PID: macOS GCController recognizes it natively.
 constexpr uint16_t kUsbVid = 0x18D1;  // Google LLC
 constexpr uint16_t kUsbPid = 0x9400;  // Stadia Controller
+#endif
 constexpr uint16_t kUsbBcd = 0x0100;
 
 uint8_t const kDescHidKeyboard[] = {
@@ -210,19 +215,6 @@ uint8_t const kDescConfig[] = {
                        kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
 };
 
-// ── DualShock 4 mode ───────────────────────────────────────────────────────
-
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-
-enum InterfaceNumberDs4 : uint8_t {
-  kItfDs4 = 0,
-  kItfDs4Total,
-};
-
-enum EndpointAddressDs4 : uint8_t {
-  kEpnDs4 = 0x81,
-};
-
 uint8_t const kDescHidDs4[] = {
     0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
     0x09, 0x05,                    // Usage (Game Pad)
@@ -274,17 +266,6 @@ uint8_t const kDescHidDs4[] = {
     0xC0,                          // End Collection
 };
 
-uint8_t const kDescConfigDs4[] = {
-    TUD_CONFIG_DESCRIPTOR(1, kItfDs4Total, 0,
-                          TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN,
-                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 250),
-    TUD_HID_DESCRIPTOR(kItfDs4, 0, HID_ITF_PROTOCOL_NONE,
-                       sizeof(kDescHidDs4),
-                       kEpnDs4, CFG_TUD_HID_EP_BUFSIZE, 4),
-};
-
-#endif
-
 // ── Device descriptors (mode-selected at runtime) ──────────────────────────
 
 tusb_desc_device_t const kDescDevice = {
@@ -295,29 +276,16 @@ tusb_desc_device_t const kDescDevice = {
     0x01, 0x02, 0x03, 0x01,
 };
 
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-tusb_desc_device_t const kDescDeviceDs4 = {
-    sizeof(tusb_desc_device_t), TUSB_DESC_DEVICE, 0x0200,
-    0x00, 0x00, 0x00,
-    CFG_TUD_ENDPOINT0_SIZE,
-    kUsbVidDs4, kUsbPidDs4, kUsbBcd,
-    0x01, 0x02, 0x03, 0x01,
-};
-#endif
-
 char const* kStringDescriptors[] = {
     nullptr,
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+    "Sony Interactive Entertainment",
+    "DualPakka DS4 Composite",
+#else
     "Google LLC",
     "DualPakka Composite Remapper",
-};
-
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-char const* kStringDescriptorsDs4[] = {
-    nullptr,
-    "Sony Interactive Entertainment",
-    "Wireless Controller",
-};
 #endif
+};
 
 uint16_t g_string_desc[32];
 
@@ -339,7 +307,11 @@ extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
     case kItfMouse:
       return kDescHidMouse;
     case kItfGamepad:
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+      return kDescHidDs4;
+#else
       return kDescHidGamepad;
+#endif
     default:
       return nullptr;
   }

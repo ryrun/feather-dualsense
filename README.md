@@ -4,15 +4,15 @@ Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723
 
 - USB HID keyboard
 - USB HID mouse
-- Google Stadia Controller compatible USB HID gamepad (VID `0x18D1`, PID `0x9400`)
+- Compile-time selected USB HID gamepad backend: Google Stadia Controller by default (VID `0x18D1`, PID `0x9400`) or DualShock 4 (VID `0x054C`, PID `0x09CC`)
 
 The active logical profile controls which reports are sent:
 
 - **KBM profile** – maps controller buttons to keyboard and mouse reports
-- **Gamepad profile** – forwards controller state as Stadia Controller gamepad reports
-- **Hybrid profile** – forwards Stadia Controller gamepad reports and adds touch-activated gyro mouse
+- **Gamepad profile** – forwards controller state as gamepad reports
+- **Hybrid profile** – forwards gamepad reports and adds touch-activated gyro mouse
 
-Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → Hybrid → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile persistence is temporarily disabled while runtime switching is being tested.
+Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → Hybrid → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile switching is runtime-only and always starts in KBM profile after boot.
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -24,7 +24,7 @@ In KBM mode, touching the DualSense touchpad enables gyro aiming and sends gyro 
 
 Responsiveness is a core design goal. The firmware forces the DualSense input endpoint to 1 ms and exposes 1 ms HID output reports, targeting a direct 1000 Hz input-to-output path.
 
-A separate gamepad mode is included for games where native controller input works better and gyro is not useful, such as racing games. It emulates a Google Stadia Controller because that profile works reliably for the author's macOS cloud gaming setup with Shadow PC and GeForce Now. It avoids PlayStation-controller mapping issues in Shadow PC when USB forwarding is not used, and avoids XInput-style duplicate-controller detection through SDL2. Rumble and DualSense-specific features are intentionally out of scope.
+A separate gamepad mode is included for games where native controller input works better and gyro is not useful, such as racing games. By default, it emulates a Google Stadia Controller because that profile works reliably for the author's macOS cloud gaming setup with Shadow PC and GeForce Now. It avoids PlayStation-controller mapping issues in Shadow PC when USB forwarding is not used, and avoids XInput-style duplicate-controller detection through SDL2. A DualShock 4 backend can be selected at compile time for testing. Rumble and DualSense-specific features are intentionally out of scope.
 
 ## Hardware
 
@@ -57,11 +57,11 @@ The Feather sends keyboard and mouse reports through the composite HID device:
 
 ### Gamepad profile
 
-The Feather sends gamepad reports through a HID interface that mimics the Google Stadia Controller USB HID descriptor (VID `0x18D1`, PID `0x9400`). Analog sticks, D-pad hat, and all digital buttons are forwarded.
+The Feather sends gamepad reports through a HID interface that mimics the selected gamepad backend. Stadia Controller is the default backend; DualShock 4 can be selected at compile time. Analog sticks, D-pad hat, and all digital buttons are forwarded.
 
 ### Hybrid profile
 
-Hybrid profile uses the same Stadia Controller gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard or mouse actions in this profile.
+Hybrid profile uses the same gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard or mouse actions in this profile.
 
 ## KBM Mapping
 
@@ -177,12 +177,11 @@ make -j$(nproc)   # Linux
 make -j$(sysctl -n hw.logicalcpu)   # macOS
 ```
 
-DualShock 4 output mode is not supported by this composite HID experiment branch.
-
-The flashable artifact is:
+The build produces one flashable artifact per gamepad backend:
 
 ```sh
-build/feather_remapper.uf2
+build/feather_remapper_stadia.uf2
+build/feather_remapper_ds4.uf2
 ```
 
 ## Flash
@@ -194,8 +193,11 @@ Put the Feather into BOOTSEL mode and copy the UF2 file to the mounted RP2040 ma
 Check that the Feather enumerates correctly:
 
 ```sh
-# Composite mode — expect keyboard, mouse, and Stadia Controller HID interfaces
+# Stadia backend — expect keyboard, mouse, and Stadia Controller HID interfaces
 lsusb -v -d 18d1:9400
+
+# DualShock 4 backend — expect keyboard, mouse, and DualShock 4 HID interfaces
+lsusb -v -d 054c:09cc
 ```
 
 Check the connected controller:

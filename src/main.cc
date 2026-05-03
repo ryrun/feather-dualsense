@@ -3,7 +3,6 @@
 #include "mode.h"
 
 int main() {
-  // Mode must be read before device_out::Init() triggers USB enumeration.
   mode::Init();
   device_out::Init();
   host_reader::Init();
@@ -13,4 +12,3 @@ int main() {
     host_reader::Task();
   }
 }
-

@@ -43,11 +43,16 @@ PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 ```
 
+The default build produces both gamepad backend variants:
+
+- `build/feather_remapper_stadia.uf2`
+- `build/feather_remapper_ds4.uf2`
+
 LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
 
-This composite HID experiment supports KBM, Stadia gamepad, and hybrid gamepad+gyro-mouse profiles. DualShock 4 output mode is intentionally disabled on this branch.
+This composite HID experiment supports KBM, gamepad, and hybrid gamepad+gyro-mouse profiles. The gamepad backend is selected by flashing either the Stadia Controller UF2 or the DualShock 4 UF2.
 
-Profile persistence is temporarily disabled on this branch while runtime switching is being tested. The saved flash profile is still read on boot, but swipe changes are RAM-only.
+Profile switching is runtime-only on this branch. The firmware always starts in KBM profile after boot, and swipe changes are not written to flash.
 
 ## macOS Local Toolchain
 
@@ -74,7 +79,7 @@ make -j$(sysctl -n hw.ncpu)
 
 ## Smoke Test
 
-1. Flash `build/feather_remapper.uf2`.
+1. Flash `build/feather_remapper_stadia.uf2` or `build/feather_remapper_ds4.uf2`.
 2. Connect the Feather device USB port to the PC.
 3. Connect a wired DualSense or DualSense Edge to the Feather USB host Type-A port.
 4. Confirm the PC sees a keyboard and mouse.
@@ -88,7 +93,8 @@ make -j$(sysctl -n hw.ncpu)
 
 ```sh
 lsusb
-lsusb -v -d 18d1:9400
+lsusb -v -d 18d1:9400  # Stadia backend
+lsusb -v -d 054c:09cc  # DualShock 4 backend
 sudo usbhid-dump
 sudo modprobe usbmon
 sudo wireshark
