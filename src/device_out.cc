@@ -11,8 +11,12 @@ namespace {
 
 constexpr uint8_t kNoHidInstance = 0xff;
 
-uint8_t KeyboardInstance() {
-  switch (mode::GetActive()) {
+uint8_t g_keyboard_instance = kNoHidInstance;
+uint8_t g_mouse_instance = kNoHidInstance;
+uint8_t g_gamepad_instance = kNoHidInstance;
+
+uint8_t KeyboardInstanceForMode(mode::Mode active_mode) {
+  switch (active_mode) {
     case mode::Mode::kKeyboardMouse:
     case mode::Mode::kHybrid:
       return 0;
@@ -21,8 +25,8 @@ uint8_t KeyboardInstance() {
   }
 }
 
-uint8_t MouseInstance() {
-  switch (mode::GetActive()) {
+uint8_t MouseInstanceForMode(mode::Mode active_mode) {
+  switch (active_mode) {
     case mode::Mode::kKeyboardMouse:
     case mode::Mode::kHybrid:
       return 1;
@@ -31,8 +35,8 @@ uint8_t MouseInstance() {
   }
 }
 
-uint8_t GamepadInstance() {
-  switch (mode::GetActive()) {
+uint8_t GamepadInstanceForMode(mode::Mode active_mode) {
+  switch (active_mode) {
     case mode::Mode::kGamepad:
       return 0;
     case mode::Mode::kHybrid:
@@ -49,6 +53,11 @@ uint8_t GamepadInstance() {
 }  // namespace
 
 void Init() {
+  const mode::Mode active_mode = mode::GetActive();
+  g_keyboard_instance = KeyboardInstanceForMode(active_mode);
+  g_mouse_instance = MouseInstanceForMode(active_mode);
+  g_gamepad_instance = GamepadInstanceForMode(active_mode);
+
   board_init();
   tusb_init();
 }
@@ -58,19 +67,19 @@ void Task() {
 }
 
 bool HasKeyboard() {
-  return KeyboardInstance() != kNoHidInstance;
+  return g_keyboard_instance != kNoHidInstance;
 }
 
 bool HasMouse() {
-  return MouseInstance() != kNoHidInstance;
+  return g_mouse_instance != kNoHidInstance;
 }
 
 bool HasGamepad() {
-  return GamepadInstance() != kNoHidInstance;
+  return g_gamepad_instance != kNoHidInstance;
 }
 
 bool SendKeyboard(const KeyboardReport& report) {
-  const uint8_t instance = KeyboardInstance();
+  const uint8_t instance = g_keyboard_instance;
   if (instance == kNoHidInstance ||
       !tud_ready() ||
       !tud_hid_n_ready(instance)) {
@@ -81,7 +90,7 @@ bool SendKeyboard(const KeyboardReport& report) {
 }
 
 bool SendMouse(const MouseReport& report) {
-  const uint8_t instance = MouseInstance();
+  const uint8_t instance = g_mouse_instance;
   if (instance == kNoHidInstance ||
       !tud_ready() ||
       !tud_hid_n_ready(instance)) {
@@ -92,7 +101,7 @@ bool SendMouse(const MouseReport& report) {
 }
 
 bool SendGamepad(const GamepadReport& report) {
-  const uint8_t instance = GamepadInstance();
+  const uint8_t instance = g_gamepad_instance;
   if (instance == kNoHidInstance ||
       !tud_ready() ||
       !tud_hid_n_ready(instance)) {
