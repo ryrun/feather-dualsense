@@ -11,8 +11,9 @@ The active logical profile controls which reports are sent:
 - **KBM profile** – maps controller buttons to keyboard and mouse reports
 - **Gamepad profile** – forwards controller state as gamepad reports
 - **Hybrid profile** – forwards gamepad reports and adds touch-activated gyro mouse
+- **Gyro Stick profile** – forwards gamepad reports and maps touch-activated gyro to the right stick
 
-Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → Hybrid → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile switching is runtime-only and always starts in KBM profile after boot.
+Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → Hybrid → Gyro Stick → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile switching is runtime-only and always starts in KBM profile after boot.
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -63,6 +64,10 @@ The Feather sends gamepad reports through a HID interface that mimics the select
 
 Hybrid profile uses the same gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard or mouse actions in this profile.
 
+### Gyro Stick profile
+
+Gyro Stick profile uses the same gamepad mapping as Gamepad profile. While the touchpad is touched, gyro movement is mapped to the right analog stick instead of mouse X/Y. When the touchpad is not touched, the physical right stick is forwarded normally.
+
 ## KBM Mapping
 
 ### DualSense (standard)
@@ -95,7 +100,7 @@ Hybrid profile uses the same gamepad mapping as Gamepad profile and additionally
 | Right stick | Numpad `1`–`8` |
 | Gyro (while touching touchpad) | Relative mouse X/Y |
 | Touchpad vertical swipe | Scroll wheel |
-| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad → Hybrid profile |
+| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad → Hybrid → Gyro Stick profile |
 
 ### DualSense Edge (additional / different)
 
@@ -148,7 +153,7 @@ Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch
 
-Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM, Gamepad, and Hybrid profile. The device switches immediately without rebooting.
+Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM, Gamepad, Hybrid, and Gyro Stick profile. The device switches immediately without rebooting.
 
 The swipe gesture works in all profiles. A second finger on the pad at any point during the swipe cancels it.
 

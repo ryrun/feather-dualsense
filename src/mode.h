@@ -8,8 +8,9 @@ namespace mode {
 
 enum class Mode : uint8_t {
   kKeyboardMouse = 0,
-  kGamepad = 1,  // Stadia Controller
-  kHybrid = 2,   // Stadia Controller + touch-activated gyro mouse
+  kGamepad = 1,    // Gamepad backend
+  kHybrid = 2,     // Gamepad backend + touch-activated gyro mouse
+  kGyroStick = 3,  // Gamepad backend + touch-activated gyro right stick
   kCount,
 };
 

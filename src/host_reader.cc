@@ -175,8 +175,9 @@ void QueueModeLightbar(mode::Mode active_mode) {
     QueueLightbar(255, 200, 0);  // yellow
   } else if (active_mode == mode::Mode::kHybrid) {
     QueueLightbar(160, 0, 255);  // purple
-  }
-  else {
+  } else if (active_mode == mode::Mode::kGyroStick) {
+    QueueLightbar(0, 255, 0);    // green
+  } else {
     QueueLightbar(0, 0, 255);    // blue
   }
 }
@@ -360,6 +361,15 @@ int16_t ConsumeMouseDelta(int32_t delta_q16, int32_t* remainder_q16) {
   return clamped;
 }
 
+uint8_t StickAxisFromDeflection(int32_t deflection) {
+  if (deflection > 127) {
+    deflection = 127;
+  } else if (deflection < -127) {
+    deflection = -127;
+  }
+  return static_cast<uint8_t>(128 + deflection);
+}
+
 TouchState ParseTouchState(uint8_t const* report, uint16_t len) {
   TouchState touch = {};
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
@@ -457,6 +467,85 @@ bool ProcessGyroMouse(uint8_t const* report, uint16_t len, const TouchState& tou
   g_controller.mouse.y = ClampI16(
       static_cast<int32_t>(g_controller.mouse.y) + mouse_y);
   return true;
+}
+
+bool ParseGyroRightStick(uint8_t const* report, uint16_t len,
+                         const TouchState& touch,
+                         uint8_t* stick_x, uint8_t* stick_y) {
+#if GYRO_MOUSE_ENABLE
+  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
+  constexpr uint8_t kGyroOffset = 15;
+  constexpr uint8_t kGyroX = kGyroOffset;
+  constexpr uint8_t kGyroY = kGyroOffset + 2;
+  constexpr uint8_t kGyroZ = kGyroOffset + 4;
+  if (len <= report_base + kGyroZ + 1) {
+    return false;
+  }
+
+  const int16_t gyro_raw_x = ReadLe16(&report[report_base + kGyroX]);
+  const int16_t gyro_raw_y = ReadLe16(&report[report_base + kGyroY]);
+  const int16_t gyro_raw_z = ReadLe16(&report[report_base + kGyroZ]);
+
+  const int16_t gyro_for_x = gyro_raw_y;
+  const int16_t gyro_for_y = gyro_raw_x;
+
+  const int16_t bias_x = static_cast<int16_t>(g_controller.gyro_bias_x_q8 >> 8);
+  const int16_t bias_y = static_cast<int16_t>(g_controller.gyro_bias_y_q8 >> 8);
+  const int16_t bias_z = static_cast<int16_t>(g_controller.gyro_bias_z_q8 >> 8);
+  const int16_t corrected_x = gyro_for_x - bias_x;
+  const int16_t corrected_y = gyro_for_y - bias_y;
+  const int16_t corrected_z = gyro_raw_z - bias_z;
+
+  constexpr int16_t kRestThreshold = 12;
+  const bool touching = touch.any_active;
+  if (!touching &&
+      Abs32(corrected_x) < kRestThreshold &&
+      Abs32(corrected_y) < kRestThreshold &&
+      Abs32(corrected_z) < kRestThreshold) {
+    g_controller.gyro_bias_x_q8 +=
+        ((static_cast<int32_t>(gyro_for_x) << 8) - g_controller.gyro_bias_x_q8) / 400;
+    g_controller.gyro_bias_y_q8 +=
+        ((static_cast<int32_t>(gyro_for_y) << 8) - g_controller.gyro_bias_y_q8) / 400;
+    g_controller.gyro_bias_z_q8 +=
+        ((static_cast<int32_t>(gyro_raw_z) << 8) - g_controller.gyro_bias_z_q8) / 400;
+  }
+
+  if (!touching) {
+    return false;
+  }
+
+  constexpr int16_t kSoftThreshold = 15;
+  int16_t stick_raw_x = corrected_x;
+  int16_t stick_raw_y = corrected_y;
+  if (Abs32(stick_raw_x) < kSoftThreshold) {
+    stick_raw_x = static_cast<int16_t>(
+        (static_cast<int32_t>(stick_raw_x) * Abs32(stick_raw_x)) / kSoftThreshold);
+  }
+  if (Abs32(stick_raw_y) < kSoftThreshold) {
+    stick_raw_y = static_cast<int16_t>(
+        (static_cast<int32_t>(stick_raw_y) * Abs32(stick_raw_y)) / kSoftThreshold);
+  }
+
+  constexpr int32_t kYFactorQ16 =
+      static_cast<int32_t>(GYRO_MOUSE_Y_FACTOR * 65536.0f);
+  const int32_t stick_x_deflection =
+      (static_cast<int32_t>(stick_raw_x) * GYRO_STICK_SENSITIVITY_Q8) >> 8;
+  const int32_t stick_y_scaled =
+      (static_cast<int32_t>(stick_raw_y) * GYRO_STICK_SENSITIVITY_Q8) >> 8;
+  const int32_t stick_y_deflection =
+      static_cast<int32_t>((static_cast<int64_t>(stick_y_scaled) * kYFactorQ16) >> 16);
+
+  *stick_x = StickAxisFromDeflection(stick_x_deflection);
+  *stick_y = StickAxisFromDeflection(stick_y_deflection);
+  return true;
+#else
+  (void)report;
+  (void)len;
+  (void)touch;
+  (void)stick_x;
+  (void)stick_y;
+  return false;
+#endif
 }
 
 bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch,
@@ -657,12 +746,10 @@ void HandleModeSwitch() {
 
   if (previous_mode == mode::Mode::kKeyboardMouse) {
     QueueKeyboardMouseClear();
-  } else if (previous_mode == mode::Mode::kGamepad) {
-    QueueGamepadClear();
   } else if (previous_mode == mode::Mode::kHybrid) {
     QueueKeyboardMouseClear();
-    QueueGamepadClear();
   }
+  QueueGamepadClear();
 
   ApplyModeLightbar(next_mode);
 }
@@ -940,6 +1027,12 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
 #endif
   return gp;
 }
+
+void SetGamepadRightStick(device_out::GamepadReport* gp, uint8_t x, uint8_t y) {
+  gp->right_x = x;
+  gp->right_y = y;
+}
+
 // Layout mirrors struct dualsense_output_report from hid-playstation.c:
 //   byte  1 = valid_flag1 (0x04 = lightbar control enable)
 //   byte 44 = lightbar_red
@@ -1073,17 +1166,27 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   // Swipe gesture works in both modes.
   if (ParseSwipeGesture(touch)) {
     HandleModeSwitch();
+    FlushPendingOutputs();
+    ArmReceiveReport();
+    return;
   }
   FlushPendingOutputs();
 
   if (g_controller.active_mode == mode::Mode::kGamepad ||
-      g_controller.active_mode == mode::Mode::kHybrid) {
+      g_controller.active_mode == mode::Mode::kHybrid ||
+      g_controller.active_mode == mode::Mode::kGyroStick) {
     g_controller.gamepad = ParseForGamepad(report, len, raw_buttons);
     g_controller.gamepad_pending = true;
 
     if (g_controller.active_mode == mode::Mode::kHybrid &&
         ProcessGyroMouse(report, len, touch)) {
       g_controller.mouse_pending = true;
+    } else if (g_controller.active_mode == mode::Mode::kGyroStick) {
+      uint8_t stick_x = 0x80;
+      uint8_t stick_y = 0x80;
+      if (ParseGyroRightStick(report, len, touch, &stick_x, &stick_y)) {
+        SetGamepadRightStick(&g_controller.gamepad, stick_x, stick_y);
+      }
     }
 
     FlushPendingOutputs();

@@ -50,7 +50,7 @@ The default build produces both gamepad backend variants:
 
 LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
 
-This composite HID experiment supports KBM, gamepad, and hybrid gamepad+gyro-mouse profiles. The gamepad backend is selected by flashing either the Stadia Controller UF2 or the DualShock 4 UF2.
+This composite HID experiment supports KBM, gamepad, hybrid gamepad+gyro-mouse, and gyro-stick profiles. The gamepad backend is selected by flashing either the Stadia Controller UF2 or the DualShock 4 UF2.
 
 Profile switching is runtime-only on this branch. The firmware always starts in KBM profile after boot, and swipe changes are not written to flash.
 
@@ -88,6 +88,7 @@ make -j$(sysctl -n hw.ncpu)
 7. Touch the touchpad and move the controller to confirm gyro mouse movement.
 8. Perform a full-width touchpad swipe and confirm the device switches to gamepad profile without USB re-enumeration.
 9. Perform a second full-width touchpad swipe and confirm the purple hybrid profile sends gamepad input plus touch-activated gyro mouse.
+10. Perform a third full-width touchpad swipe and confirm the green gyro-stick profile sends gamepad input plus touch-activated gyro right-stick output.
 
 ## Linux HID Inspection
 

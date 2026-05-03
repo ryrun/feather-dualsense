@@ -18,6 +18,8 @@
 #define GYRO_MOUSE_SENSITIVITY_Q16 (-171)
 // Y axis scale factor relative to X (applied as integer Q16 at compile time).
 #define GYRO_MOUSE_Y_FACTOR 0.7f
+// Gyro-to-right-stick sensitivity in Q8. Negative matches mouse X direction.
+#define GYRO_STICK_SENSITIVITY_Q8 (-64)
 
 #define TOUCHPAD_SCROLL_ENABLE 1
 #define TOUCHPAD_SCROLL_THRESHOLD 100
