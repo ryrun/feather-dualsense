@@ -13,7 +13,7 @@ The active logical profile controls which reports are sent:
 - **Hybrid profile** – forwards gamepad reports and adds touch-activated gyro mouse
 - **Gyro Stick profile** – optional profile that forwards gamepad reports and maps touch-activated gyro to the right stick
 
-Perform a **full-width touchpad swipe** (single finger, edge to edge) to cycle KBM → Gamepad → Hybrid → KBM by default. If `GYRO_STICK_PROFILE_ENABLE` is enabled at compile time, the cycle is KBM → Gamepad → Hybrid → Gyro Stick → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile switching is runtime-only and always starts in KBM profile after boot.
+Perform a **full-width touchpad swipe** (single finger, edge to edge) to switch profiles: left→right selects the next profile, right→left selects the previous profile. The default profile order is KBM → Gamepad → Hybrid → KBM. If `FEATHER_GYRO_STICK_PROFILE=ON` is configured, the order is KBM → Gamepad → Hybrid → Gyro Stick → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile switching is runtime-only and always starts in KBM profile after boot.
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -66,7 +66,7 @@ Hybrid profile uses the same gamepad mapping as Gamepad profile and additionally
 
 ### Gyro Stick profile
 
-Gyro Stick profile is enabled by `GYRO_STICK_PROFILE_ENABLE` in `src/build_config.h`. It uses the same gamepad mapping as Gamepad profile. While the touchpad is touched, gyro movement is mapped to the right analog stick instead of mouse X/Y. When the touchpad is not touched, the physical right stick is forwarded normally.
+Gyro Stick profile is enabled with `-DFEATHER_GYRO_STICK_PROFILE=ON`, which sets `GYRO_STICK_PROFILE_ENABLE` at compile time. It uses the same gamepad mapping as Gamepad profile. While the touchpad is touched, gyro movement is mapped to the right analog stick instead of mouse X/Y. When the touchpad is not touched, the physical right stick is forwarded normally.
 
 ## KBM Mapping
 
@@ -100,7 +100,7 @@ Gyro Stick profile is enabled by `GYRO_STICK_PROFILE_ENABLE` in `src/build_confi
 | Right stick | Numpad `1`–`8` |
 | Gyro (while touching touchpad) | Relative mouse X/Y |
 | Touchpad vertical swipe | Scroll wheel |
-| Touchpad full-width swipe (left→right or right→left, single finger) | Cycle KBM → Gamepad → Hybrid → Gyro Stick profile |
+| Touchpad full-width swipe left→right / right→left (single finger) | Next / previous profile |
 
 ### DualSense Edge (additional / different)
 
@@ -153,7 +153,7 @@ Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch
 
-Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to cycle between KBM, Gamepad, Hybrid, and Gyro Stick profile. The device switches immediately without rebooting.
+Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to switch profiles. Left→right selects the next profile; right→left selects the previous profile. The default order is KBM, Gamepad, and Hybrid. If `FEATHER_GYRO_STICK_PROFILE` is enabled at configure time, Gyro Stick profile is added after Hybrid. The device switches immediately without rebooting.
 
 The swipe gesture works in all profiles. A second finger on the pad at any point during the swipe cancels it.
 

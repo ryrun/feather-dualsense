@@ -19,7 +19,8 @@ enum class Mode : uint8_t {
 void Init();
 Mode GetActive();
 
-// Toggles the active mode and returns the new mode. The profile is runtime-only.
-Mode ToggleRuntime();
+// Switches the active mode and returns the new mode. The profile is runtime-only.
+Mode NextRuntime();
+Mode PreviousRuntime();
 
 }  // namespace mode

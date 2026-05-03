@@ -88,6 +88,12 @@ struct TouchState {
   bool any_active;
 };
 
+enum class SwipeDirection : uint8_t {
+  kNone = 0,
+  kNext,
+  kPrevious,
+};
+
 #if FEATHER_REMAPPER_DEBUG
 void DebugPrintReport(uint8_t const* report, uint16_t len) {
   printf("hid report len=%u:", len);
@@ -779,10 +785,10 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
 // Detects a full-width single-finger swipe for mode switching.
 // Trigger: one finger starts within SWIPE_GESTURE_EDGE_MARGIN px of either
 // edge and ends past the opposite edge threshold. Second finger cancels.
-bool ParseSwipeGesture(const TouchState& touch) {
+SwipeDirection ParseSwipeGesture(const TouchState& touch) {
   if (touch.point[1].active) {
     g_controller.swipe_finger_down = false;
-    return false;
+    return SwipeDirection::kNone;
   }
 
   if (touch.point[0].active && !g_controller.swipe_finger_down) {
@@ -799,11 +805,14 @@ bool ParseSwipeGesture(const TouchState& touch) {
     constexpr uint16_t kRight = 1920 - SWIPE_GESTURE_EDGE_MARGIN;
     const bool left_to_right = (start < kLeft)  && (end > kRight);
     const bool right_to_left = (start > kRight) && (end < kLeft);
-    if (left_to_right || right_to_left) {
-      return true;
+    if (left_to_right) {
+      return SwipeDirection::kNext;
+    }
+    if (right_to_left) {
+      return SwipeDirection::kPrevious;
     }
   }
-  return false;
+  return SwipeDirection::kNone;
 }
 
 void ApplyModeLightbar(mode::Mode active_mode) {
@@ -814,9 +823,11 @@ void ApplyModeLightbar(mode::Mode active_mode) {
   QueueModeLightbar(active_mode);
 }
 
-void HandleModeSwitch() {
+void HandleModeSwitch(SwipeDirection direction) {
   const mode::Mode previous_mode = g_controller.active_mode;
-  const mode::Mode next_mode = mode::ToggleRuntime();
+  const mode::Mode next_mode =
+      (direction == SwipeDirection::kPrevious) ? mode::PreviousRuntime()
+                                               : mode::NextRuntime();
   g_controller.active_mode = next_mode;
 
   g_controller.buttons = 0;
@@ -1250,9 +1261,10 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
   const TouchState touch = ParseTouchState(report, len);
 
-  // Swipe gesture works in both modes.
-  if (ParseSwipeGesture(touch)) {
-    HandleModeSwitch();
+  // Swipe gesture works in all modes.
+  const SwipeDirection swipe_direction = ParseSwipeGesture(touch);
+  if (swipe_direction != SwipeDirection::kNone) {
+    HandleModeSwitch(swipe_direction);
     FlushPendingOutputs();
     ArmReceiveReport();
     return;
