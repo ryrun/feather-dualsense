@@ -19,6 +19,9 @@ extern "C" {
 extern endpoint_t pio_usb_ep_pool[32];  // PIO_USB_EP_POOL_CNT = 32
 }
 
+static bool SendDualSenseLightbar(uint8_t dev_addr, uint8_t instance,
+                                  uint8_t r, uint8_t g, uint8_t b);
+
 namespace {
 
 constexpr uint kStatusLedPin = PICO_DEFAULT_LED_PIN;
@@ -29,6 +32,8 @@ struct ActiveController {
   uint8_t allowed_dev_addr;
   uint8_t dev_addr;
   uint8_t instance;
+  bool receive_pending;
+  mode::Mode active_mode;
   const mapping::Action* actions;
   const mapping::Action* gamepad_actions;
   uint64_t buttons;
@@ -55,8 +60,14 @@ struct ActiveController {
   uint16_t swipe_current_x;
   bool keyboard_pending;
   bool mouse_pending;
+  bool gamepad_pending;
+  bool lightbar_pending;
+  uint8_t lightbar_r;
+  uint8_t lightbar_g;
+  uint8_t lightbar_b;
   device_out::KeyboardReport keyboard;
   device_out::MouseReport mouse;
+  device_out::GamepadReport gamepad;
 };
 
 ActiveController g_controller = {};
@@ -93,6 +104,8 @@ void ClearHidState() {
   g_controller.active = false;
   g_controller.dev_addr = 0;
   g_controller.instance = 0;
+  g_controller.receive_pending = false;
+  g_controller.active_mode = mode::GetActive();
   g_controller.actions = nullptr;
   g_controller.gamepad_actions = nullptr;
   g_controller.buttons = 0;
@@ -110,12 +123,105 @@ void ClearHidState() {
   g_controller.swipe_finger_down = false;
   g_controller.keyboard_pending = false;
   g_controller.mouse_pending = false;
+  g_controller.gamepad_pending = false;
+  g_controller.lightbar_pending = false;
+  g_controller.lightbar_r = 0;
+  g_controller.lightbar_g = 0;
+  g_controller.lightbar_b = 0;
   memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
   memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
+  memset(&g_controller.gamepad, 0, sizeof(g_controller.gamepad));
 }
 
 void SetControllerLed(bool on) {
   board_led_write(on);
+}
+
+device_out::GamepadReport NeutralGamepadReport() {
+  device_out::GamepadReport gp = {};
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+  gp.left_x = gp.left_y = 0x80;
+  gp.right_x = gp.right_y = 0x80;
+  gp.hat_buttons = 0x08;
+#else
+  gp.hat = 0x08;
+  gp.left_x = gp.left_y = 0x80;
+  gp.right_x = gp.right_y = 0x80;
+#endif
+  return gp;
+}
+
+void QueueKeyboardMouseClear() {
+  memset(&g_controller.keyboard, 0, sizeof(g_controller.keyboard));
+  memset(&g_controller.mouse, 0, sizeof(g_controller.mouse));
+  g_controller.keyboard_pending = true;
+  g_controller.mouse_pending = true;
+}
+
+void QueueGamepadClear() {
+  g_controller.gamepad = NeutralGamepadReport();
+  g_controller.gamepad_pending = true;
+}
+
+void QueueLightbar(uint8_t r, uint8_t g, uint8_t b) {
+  g_controller.lightbar_r = r;
+  g_controller.lightbar_g = g;
+  g_controller.lightbar_b = b;
+  g_controller.lightbar_pending = true;
+}
+
+void QueueModeLightbar(mode::Mode active_mode) {
+  if (active_mode == mode::Mode::kGamepad) {
+    QueueLightbar(255, 200, 0);  // yellow
+  } else if (active_mode == mode::Mode::kHybrid) {
+    QueueLightbar(160, 0, 255);  // purple
+  }
+  else {
+    QueueLightbar(0, 0, 255);    // blue
+  }
+}
+
+void ArmReceiveReport() {
+  if (!g_controller.active || g_controller.receive_pending) {
+    return;
+  }
+
+  if (tuh_hid_receive_report(g_controller.dev_addr, g_controller.instance)) {
+    g_controller.receive_pending = true;
+  }
+}
+
+void FlushPendingControllerOutputs() {
+  if (!g_controller.active || !g_controller.lightbar_pending) {
+    return;
+  }
+
+  if (SendDualSenseLightbar(g_controller.dev_addr, g_controller.instance,
+                            g_controller.lightbar_r,
+                            g_controller.lightbar_g,
+                            g_controller.lightbar_b)) {
+    g_controller.lightbar_pending = false;
+  }
+}
+
+void FlushPendingOutputs() {
+  if (g_controller.keyboard_pending &&
+      device_out::SendKeyboard(g_controller.keyboard)) {
+    g_controller.keyboard_pending = false;
+  }
+
+  if (g_controller.mouse_pending && device_out::SendMouse(g_controller.mouse)) {
+    g_controller.mouse_pending = false;
+    g_controller.mouse.x = 0;
+    g_controller.mouse.y = 0;
+    g_controller.mouse.wheel = 0;
+    g_controller.mouse.pan = 0;
+  }
+
+  if (g_controller.gamepad_pending &&
+      device_out::SendGamepad(g_controller.gamepad)) {
+    g_controller.gamepad_pending = false;
+  }
 }
 
 void RunLedSelfTest() {
@@ -335,6 +441,25 @@ bool ParseTouchScroll(const TouchState& touch, int8_t* scroll) {
 }
 
 bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch,
+                    int16_t* mouse_x, int16_t* mouse_y);
+
+bool ProcessGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch) {
+  int16_t mouse_x = 0;
+  int16_t mouse_y = 0;
+  if (!ParseGyroMouse(report, len, touch, &mouse_x, &mouse_y)) {
+    return false;
+  }
+
+  // Accumulate across frames so pixels are never lost when the host
+  // polls slower than 1000 Hz (e.g. macOS at 125 Hz).
+  g_controller.mouse.x = ClampI16(
+      static_cast<int32_t>(g_controller.mouse.x) + mouse_x);
+  g_controller.mouse.y = ClampI16(
+      static_cast<int32_t>(g_controller.mouse.y) + mouse_y);
+  return true;
+}
+
+bool ParseGyroMouse(uint8_t const* report, uint16_t len, const TouchState& touch,
                     int16_t* mouse_x, int16_t* mouse_y) {
 #if GYRO_MOUSE_ENABLE
   const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
@@ -484,11 +609,10 @@ uint64_t ParseRightStickButtons(uint8_t const* report, uint16_t len) {
 // Detects a full-width single-finger swipe for mode switching.
 // Trigger: one finger starts within SWIPE_GESTURE_EDGE_MARGIN px of either
 // edge and ends past the opposite edge threshold. Second finger cancels.
-// Calls mode::ToggleAndReboot() (does not return) on success.
-void ParseSwipeGesture(const TouchState& touch) {
+bool ParseSwipeGesture(const TouchState& touch) {
   if (touch.point[1].active) {
     g_controller.swipe_finger_down = false;
-    return;
+    return false;
   }
 
   if (touch.point[0].active && !g_controller.swipe_finger_down) {
@@ -506,9 +630,41 @@ void ParseSwipeGesture(const TouchState& touch) {
     const bool left_to_right = (start < kLeft)  && (end > kRight);
     const bool right_to_left = (start > kRight) && (end < kLeft);
     if (left_to_right || right_to_left) {
-      mode::ToggleAndReboot();
+      return true;
     }
   }
+  return false;
+}
+
+void ApplyModeLightbar(mode::Mode active_mode) {
+  if (!g_controller.active) {
+    return;
+  }
+
+  QueueModeLightbar(active_mode);
+}
+
+void HandleModeSwitch() {
+  const mode::Mode previous_mode = g_controller.active_mode;
+  const mode::Mode next_mode = mode::ToggleRuntime();
+  g_controller.active_mode = next_mode;
+
+  g_controller.buttons = 0;
+  g_controller.gyro_mouse_x_remainder_q16 = 0;
+  g_controller.gyro_mouse_y_remainder_q16 = 0;
+  g_controller.touchpad_clicked = false;
+  g_controller.touchpad_zone = 0;
+
+  if (previous_mode == mode::Mode::kKeyboardMouse) {
+    QueueKeyboardMouseClear();
+  } else if (previous_mode == mode::Mode::kGamepad) {
+    QueueGamepadClear();
+  } else if (previous_mode == mode::Mode::kHybrid) {
+    QueueKeyboardMouseClear();
+    QueueGamepadClear();
+  }
+
+  ApplyModeLightbar(next_mode);
 }
 
 // Updates keyboard/mouse state for a touchpad click event.
@@ -687,11 +843,56 @@ bool ProcessButtons(uint64_t next_buttons, bool* keyboard_changed) {
 
 }  // namespace
 
-// Builds a Stadia Controller HID report from a DualSense input.
+// Builds the selected gamepad backend HID report from a DualSense input.
 static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
                                                  uint16_t len,
                                                  uint64_t button_mask) {
   device_out::GamepadReport gp = {};
+
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
+  const uint8_t button_base = report_base + 7;
+
+  if (len > button_base) {
+    const uint8_t hat = report[button_base] & 0x0F;
+    gp.hat_buttons = (hat > 7) ? 0x08 : hat;
+  } else {
+    gp.hat_buttons = 0x08;
+  }
+
+  const auto pressed = [button_mask](mapping::Button button) {
+    return (button_mask & mapping::ButtonMask(button)) != 0;
+  };
+
+  if (pressed(mapping::Button::kSquare)) gp.hat_buttons |= 0x10;
+  if (pressed(mapping::Button::kCross)) gp.hat_buttons |= 0x20;
+  if (pressed(mapping::Button::kCircle)) gp.hat_buttons |= 0x40;
+  if (pressed(mapping::Button::kTriangle)) gp.hat_buttons |= 0x80;
+
+  if (pressed(mapping::Button::kL1)) gp.buttons1 |= 0x01;
+  if (pressed(mapping::Button::kR1)) gp.buttons1 |= 0x02;
+  if (pressed(mapping::Button::kL2)) gp.buttons1 |= 0x04;
+  if (pressed(mapping::Button::kR2)) gp.buttons1 |= 0x08;
+  if (pressed(mapping::Button::kCreate)) gp.buttons1 |= 0x10;   // Share
+  if (pressed(mapping::Button::kOptions)) gp.buttons1 |= 0x20;
+  if (pressed(mapping::Button::kL3)) gp.buttons1 |= 0x40;
+  if (pressed(mapping::Button::kR3)) gp.buttons1 |= 0x80;
+
+  if (pressed(mapping::Button::kPs)) gp.buttons2 |= 0x01;
+  if (pressed(mapping::Button::kTouchpad)) gp.buttons2 |= 0x02;
+
+  if (len >= static_cast<uint16_t>(report_base + 6)) {
+    gp.left_x = report[report_base + 0];
+    gp.left_y = report[report_base + 1];
+    gp.right_x = report[report_base + 2];
+    gp.right_y = report[report_base + 3];
+    gp.left_trigger = report[report_base + 4];
+    gp.right_trigger = report[report_base + 5];
+  } else {
+    gp.left_x = gp.left_y = 0x80;
+    gp.right_x = gp.right_y = 0x80;
+  }
+#else
   gp.hat = 0x08;  // hat center (null state)
   gp.left_x = gp.left_y = gp.right_x = gp.right_y = 0x80;
 
@@ -736,75 +937,23 @@ static device_out::GamepadReport ParseForGamepad(uint8_t const* report,
   }
 
   gp.consumer = 0;
+#endif
   return gp;
 }
-
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-static device_out::DualShock4Report ParseForDualShock4(uint8_t const* report,
-                                                       uint16_t len,
-                                                       uint64_t button_mask) {
-  device_out::DualShock4Report ds4 = {};
-
-  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
-  const uint8_t button_base = report_base + 7;
-
-  if (len > button_base) {
-    const uint8_t hat = report[button_base] & 0x0F;
-    ds4.hat_buttons = (hat > 7) ? 0x08 : hat;
-  } else {
-    ds4.hat_buttons = 0x08;
-  }
-
-  const auto pressed = [button_mask](mapping::Button button) {
-    return (button_mask & mapping::ButtonMask(button)) != 0;
-  };
-
-  if (pressed(mapping::Button::kSquare)) ds4.hat_buttons |= 0x10;
-  if (pressed(mapping::Button::kCross)) ds4.hat_buttons |= 0x20;
-  if (pressed(mapping::Button::kCircle)) ds4.hat_buttons |= 0x40;
-  if (pressed(mapping::Button::kTriangle)) ds4.hat_buttons |= 0x80;
-
-  if (pressed(mapping::Button::kL1)) ds4.buttons1 |= 0x01;
-  if (pressed(mapping::Button::kR1)) ds4.buttons1 |= 0x02;
-  if (pressed(mapping::Button::kL2)) ds4.buttons1 |= 0x04;
-  if (pressed(mapping::Button::kR2)) ds4.buttons1 |= 0x08;
-  if (pressed(mapping::Button::kCreate)) ds4.buttons1 |= 0x10;   // Share
-  if (pressed(mapping::Button::kOptions)) ds4.buttons1 |= 0x20;
-  if (pressed(mapping::Button::kL3)) ds4.buttons1 |= 0x40;
-  if (pressed(mapping::Button::kR3)) ds4.buttons1 |= 0x80;
-
-  if (pressed(mapping::Button::kPs)) ds4.buttons2 |= 0x01;
-  if (pressed(mapping::Button::kTouchpad)) ds4.buttons2 |= 0x02;
-
-  if (len >= static_cast<uint16_t>(report_base + 6)) {
-    ds4.left_x = report[report_base + 0];
-    ds4.left_y = report[report_base + 1];
-    ds4.right_x = report[report_base + 2];
-    ds4.right_y = report[report_base + 3];
-    ds4.left_trigger = report[report_base + 4];
-    ds4.right_trigger = report[report_base + 5];
-  } else {
-    ds4.left_x = ds4.left_y = 0x80;
-    ds4.right_x = ds4.right_y = 0x80;
-  }
-
-  return ds4;
-}
-#endif
 // Layout mirrors struct dualsense_output_report from hid-playstation.c:
 //   byte  1 = valid_flag1 (0x04 = lightbar control enable)
 //   byte 44 = lightbar_red
 //   byte 45 = lightbar_green
 //   byte 46 = lightbar_blue
 // Total: 63 bytes of data + 1 byte report ID = 64 bytes.
-static void SendDualSenseLightbar(uint8_t dev_addr, uint8_t instance,
+static bool SendDualSenseLightbar(uint8_t dev_addr, uint8_t instance,
                                   uint8_t r, uint8_t g, uint8_t b) {
   uint8_t report[63] = {};
   report[1]  = 0x04;  // valid_flag1: lightbar_control_enable
   report[44] = r;
   report[45] = g;
   report[46] = b;
-  tuh_hid_send_report(dev_addr, instance, 0x02, report, sizeof(report));
+  return tuh_hid_send_report(dev_addr, instance, 0x02, report, sizeof(report));
 }
 
 namespace host_reader {
@@ -819,6 +968,8 @@ void Init() {
 
 void Task() {
   tuh_task();
+  ArmReceiveReport();
+  FlushPendingControllerOutputs();
 }
 
 }  // namespace host_reader
@@ -843,23 +994,14 @@ extern "C" void tuh_hid_mount_cb(uint8_t dev_addr,
   g_controller.active = true;
   g_controller.dev_addr = dev_addr;
   g_controller.instance = instance;
+  g_controller.active_mode = mode::GetActive();
   g_controller.actions = actions;
   g_controller.gamepad_actions = gamepad_actions;
   g_controller.allowed_device_mounted = true;
   g_controller.allowed_dev_addr = dev_addr;
   SetControllerLed(true);
 
-  if (mode::GetActive() == mode::Mode::kGamepad) {
-    SendDualSenseLightbar(dev_addr, instance, 255, 200, 0);  // yellow
-  }
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  else if (mode::GetActive() == mode::Mode::kDualShock4) {
-    SendDualSenseLightbar(dev_addr, instance, 160, 0, 255);  // purple
-  }
-#endif
-  else {
-    SendDualSenseLightbar(dev_addr, instance, 0, 0, 255);    // blue
-  }
+  ApplyModeLightbar(g_controller.active_mode);
   // Force the DualSense interrupt IN endpoint to 1ms interval (1000 Hz).
   for (int i = 0; i < 32; i++) {  // 32 = PIO_USB_EP_POOL_CNT
     endpoint_t *ep = &pio_usb_ep_pool[i];
@@ -871,7 +1013,7 @@ extern "C" void tuh_hid_mount_cb(uint8_t dev_addr,
     }
   }
 
-  tuh_hid_receive_report(dev_addr, instance);
+  ArmReceiveReport();
 }
 
 extern "C" void tuh_mount_cb(uint8_t dev_addr) {
@@ -900,22 +1042,8 @@ extern "C" void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
   if (g_controller.active &&
       g_controller.dev_addr == dev_addr &&
       g_controller.instance == instance) {
-    if (mode::GetActive() == mode::Mode::kGamepad) {
-      device_out::GamepadReport empty_gp = {};
-      empty_gp.hat = 0x08;  // hat center (null state)
-      empty_gp.left_x = empty_gp.left_y = 0x80;
-      empty_gp.right_x = empty_gp.right_y = 0x80;
-      empty_gp.brake = empty_gp.accel = 0;
-      empty_gp.consumer = 0;
-      device_out::SendGamepad(empty_gp);
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-    } else if (mode::GetActive() == mode::Mode::kDualShock4) {
-      device_out::DualShock4Report empty_ds4 = {};
-      empty_ds4.left_x = empty_ds4.left_y = 0x80;
-      empty_ds4.right_x = empty_ds4.right_y = 0x80;
-      empty_ds4.hat_buttons = 0x08;
-      device_out::SendDualShock4(empty_ds4);
-#endif
+    if (g_controller.active_mode == mode::Mode::kGamepad) {
+      device_out::SendGamepad(NeutralGamepadReport());
     } else {
       device_out::KeyboardReport empty_keyboard = {};
       device_out::MouseReport empty_mouse = {};
@@ -935,28 +1063,33 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
       g_controller.instance != instance) {
     return;
   }
+  g_controller.receive_pending = false;
 
   DebugPrintReport(report, len);
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
   const TouchState touch = ParseTouchState(report, len);
 
-  // Swipe gesture works in both modes; ToggleAndReboot() does not return.
-  ParseSwipeGesture(touch);
+  // Swipe gesture works in both modes.
+  if (ParseSwipeGesture(touch)) {
+    HandleModeSwitch();
+  }
+  FlushPendingOutputs();
 
-  if (mode::GetActive() == mode::Mode::kGamepad) {
-    device_out::SendGamepad(ParseForGamepad(report, len, raw_buttons));
-    tuh_hid_receive_report(dev_addr, instance);
+  if (g_controller.active_mode == mode::Mode::kGamepad ||
+      g_controller.active_mode == mode::Mode::kHybrid) {
+    g_controller.gamepad = ParseForGamepad(report, len, raw_buttons);
+    g_controller.gamepad_pending = true;
+
+    if (g_controller.active_mode == mode::Mode::kHybrid &&
+        ProcessGyroMouse(report, len, touch)) {
+      g_controller.mouse_pending = true;
+    }
+
+    FlushPendingOutputs();
+    ArmReceiveReport();
     return;
   }
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  if (mode::GetActive() == mode::Mode::kDualShock4) {
-    device_out::SendDualShock4(ParseForDualShock4(report, len, raw_buttons));
-    tuh_hid_receive_report(dev_addr, instance);
-    return;
-  }
-#endif
-
   bool keyboard_send = false;
   bool mouse_send = ProcessButtons(raw_buttons |
                  ParseLeftStickButtons(report, len)  |
@@ -986,15 +1119,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
         new_wheel > 127 ? 127 : new_wheel < -127 ? -127 : new_wheel);
     mouse_send = true;
   } else {
-    int16_t mouse_x = 0;
-    int16_t mouse_y = 0;
-    if (ParseGyroMouse(report, len, touch, &mouse_x, &mouse_y)) {
-      // Accumulate across frames so pixels are never lost when the host
-      // polls slower than 1000 Hz (e.g. macOS at 125 Hz).
-      g_controller.mouse.x = ClampI16(
-          static_cast<int32_t>(g_controller.mouse.x) + mouse_x);
-      g_controller.mouse.y = ClampI16(
-          static_cast<int32_t>(g_controller.mouse.y) + mouse_y);
+    if (ProcessGyroMouse(report, len, touch)) {
       mouse_send = true;
     }
   }
@@ -1019,7 +1144,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
     g_controller.mouse.wheel = 0;
     g_controller.mouse.pan = 0;
   }
-  tuh_hid_receive_report(dev_addr, instance);
+  ArmReceiveReport();
 }
 
 extern "C" void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t instance,

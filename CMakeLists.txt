@@ -25,62 +25,66 @@ set_source_files_properties(
 )
 
 option(FEATHER_REMAPPER_DEBUG "Enable verbose UART report logging" OFF)
-option(FEATHER_ENABLE_DUALSHOCK4_MODE "Build the optional DualShock 4 USB output mode" OFF)
 option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" OFF)
 
-add_executable(feather_remapper
-  src/main.cc
-  src/mode.cc
-  src/host_reader.cc
-  src/device_out.cc
-  src/usb_descriptors.cc
-)
+function(add_feather_remapper_target target_name backend_dualshock4)
+  add_executable(${target_name}
+    src/main.cc
+    src/mode.cc
+    src/host_reader.cc
+    src/device_out.cc
+    src/usb_descriptors.cc
+  )
 
-pico_enable_stdio_usb(feather_remapper 0)
-pico_enable_stdio_uart(feather_remapper 1)
+  pico_enable_stdio_usb(${target_name} 0)
+  pico_enable_stdio_uart(${target_name} 1)
 
-target_include_directories(feather_remapper PRIVATE
-  ${CMAKE_CURRENT_LIST_DIR}/src
-)
+  target_include_directories(${target_name} PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/src
+  )
 
-target_compile_definitions(feather_remapper PRIVATE
-  PICO_STDIO_USB=0
-  PICO_STDIO_UART=1
-  CFG_TUSB_MCU=OPT_MCU_RP2040
-  PIO_USB_USE_TINYUSB
-  BOARD_TUD_RHPORT=0
-  BOARD_TUH_RHPORT=1
-  FEATHER_REMAPPER_DEBUG=$<BOOL:${FEATHER_REMAPPER_DEBUG}>
-  FEATHER_ENABLE_DUALSHOCK4_MODE=$<BOOL:${FEATHER_ENABLE_DUALSHOCK4_MODE}>
-)
+  target_compile_definitions(${target_name} PRIVATE
+    PICO_STDIO_USB=0
+    PICO_STDIO_UART=1
+    CFG_TUSB_MCU=OPT_MCU_RP2040
+    PIO_USB_USE_TINYUSB
+    BOARD_TUD_RHPORT=0
+    BOARD_TUH_RHPORT=1
+    FEATHER_REMAPPER_DEBUG=$<BOOL:${FEATHER_REMAPPER_DEBUG}>
+    FEATHER_GAMEPAD_BACKEND_DUALSHOCK4=${backend_dualshock4}
+  )
 
-target_compile_options(feather_remapper PRIVATE
-  -Wall
-  -Wextra
-  -Werror
-  -ffunction-sections
-  -fdata-sections
-  $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
-  $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
-  $<$<CONFIG:Release>:-O3>
-  $<$<AND:$<CONFIG:Release>,$<BOOL:${FEATHER_REMAPPER_ENABLE_LTO}>>:-flto>
-)
+  target_compile_options(${target_name} PRIVATE
+    -Wall
+    -Wextra
+    -Werror
+    -ffunction-sections
+    -fdata-sections
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+    $<$<CONFIG:Release>:-O3>
+    $<$<AND:$<CONFIG:Release>,$<BOOL:${FEATHER_REMAPPER_ENABLE_LTO}>>:-flto>
+  )
 
-target_link_options(feather_remapper PRIVATE
-  -Wl,--gc-sections
-  $<$<AND:$<CONFIG:Release>,$<BOOL:${FEATHER_REMAPPER_ENABLE_LTO}>>:-flto>
-)
+  target_link_options(${target_name} PRIVATE
+    -Wl,--gc-sections
+    $<$<AND:$<CONFIG:Release>,$<BOOL:${FEATHER_REMAPPER_ENABLE_LTO}>>:-flto>
+  )
 
-target_link_libraries(feather_remapper
-  pico_stdlib
-  pico_unique_id
-  tinyusb_pico_pio_usb
-  tinyusb_device
-  tinyusb_host
-  tinyusb_board
-  hardware_flash
-  hardware_watchdog
-  hardware_sync
-)
+  target_link_libraries(${target_name}
+    pico_stdlib
+    pico_unique_id
+    tinyusb_pico_pio_usb
+    tinyusb_device
+    tinyusb_host
+    tinyusb_board
+    hardware_flash
+    hardware_watchdog
+    hardware_sync
+  )
 
-pico_add_extra_outputs(feather_remapper)
+  pico_add_extra_outputs(${target_name})
+endfunction()
+
+add_feather_remapper_target(feather_remapper_stadia 0)
+add_feather_remapper_target(feather_remapper_ds4 1)

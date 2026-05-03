@@ -9,17 +9,14 @@ namespace mode {
 enum class Mode : uint8_t {
   kKeyboardMouse = 0,
   kGamepad = 1,  // Stadia Controller
-#if FEATHER_ENABLE_DUALSHOCK4_MODE
-  kDualShock4 = 2,
-#endif
+  kHybrid = 2,   // Stadia Controller + touch-activated gyro mouse
   kCount,
 };
 
 void Init();
 Mode GetActive();
 
-// Toggles the active mode, writes it to flash, and reboots the device.
-// Does not return.
-[[noreturn]] void ToggleAndReboot();
+// Toggles the active mode and returns the new mode. The profile is runtime-only.
+Mode ToggleRuntime();
 
 }  // namespace mode

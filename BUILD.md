@@ -43,16 +43,16 @@ PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 ```
 
+The default build produces both gamepad backend variants:
+
+- `build/feather_remapper_stadia.uf2`
+- `build/feather_remapper_ds4.uf2`
+
 LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
 
-DualShock 4 output mode is disabled by default. To keep the DS4 code in a test build, enable it at configure time:
+This composite HID experiment supports KBM, gamepad, and hybrid gamepad+gyro-mouse profiles. The gamepad backend is selected by flashing either the Stadia Controller UF2 or the DualShock 4 UF2.
 
-```sh
-PICO_BOARD=feather_host cmake -DCMAKE_BUILD_TYPE=Release -DFEATHER_ENABLE_DUALSHOCK4_MODE=ON ..
-make -j$(nproc)
-```
-
-With the default build, the profile switch only cycles KBM and Stadia gamepad mode. With `FEATHER_ENABLE_DUALSHOCK4_MODE=ON`, DualShock 4 mode is included as the third profile.
+Profile switching is runtime-only on this branch. The firmware always starts in KBM profile after boot, and swipe changes are not written to flash.
 
 ## macOS Local Toolchain
 
@@ -79,19 +79,22 @@ make -j$(sysctl -n hw.ncpu)
 
 ## Smoke Test
 
-1. Flash `build/feather_remapper.uf2`.
+1. Flash `build/feather_remapper_stadia.uf2` or `build/feather_remapper_ds4.uf2`.
 2. Connect the Feather device USB port to the PC.
 3. Connect a wired DualSense or DualSense Edge to the Feather USB host Type-A port.
 4. Confirm the PC sees a keyboard and mouse.
 5. Press Cross for `F`, Circle for `V`, Square for `R`, Triangle for `T`.
 6. Press L2 for right mouse button and R2 for left mouse button.
 7. Touch the touchpad and move the controller to confirm gyro mouse movement.
+8. Perform a full-width touchpad swipe and confirm the device switches to gamepad profile without USB re-enumeration.
+9. Perform a second full-width touchpad swipe and confirm the purple hybrid profile sends gamepad input plus touch-activated gyro mouse.
 
 ## Linux HID Inspection
 
 ```sh
 lsusb
-lsusb -v -d cafe:4023
+lsusb -v -d 18d1:9400  # Stadia backend
+lsusb -v -d 054c:09cc  # DualShock 4 backend
 sudo usbhid-dump
 sudo modprobe usbmon
 sudo wireshark
