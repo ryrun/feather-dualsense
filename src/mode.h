@@ -18,9 +18,15 @@ enum class Mode : uint8_t {
 
 void Init();
 Mode GetActive();
+Mode Next(Mode current);
+Mode Previous(Mode current);
 
-// Switches the active mode and returns the new mode. The profile is runtime-only.
+// Switches the active mode in RAM and returns the new mode.
 Mode NextRuntime();
 Mode PreviousRuntime();
+
+// Persists a mode to flash and reboots so USB re-enumerates with the
+// selected profile's HID interface set.
+void PersistAndReboot(Mode mode);
 
 }  // namespace mode

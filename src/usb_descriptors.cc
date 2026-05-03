@@ -5,18 +5,20 @@
 #include "build_config.h"
 #include "class/hid/hid.h"
 #include "device_out.h"
+#include "mode.h"
 #include "pico/unique_id.h"
 #include "tusb.h"
 
 namespace {
 
-// ── Composite keyboard/mouse/gamepad output ────────────────────────────────
+// ── Profile-selected keyboard/mouse/gamepad output ─────────────────────────
 
 enum InterfaceNumber : uint8_t {
   kItfKeyboard = 0,
   kItfMouse,
   kItfGamepad,
-  kItfTotal,
+  kItfKbmTotal = 2,
+  kItfHybridTotal = 3,
 };
 
 enum EndpointAddress : uint8_t {
@@ -200,21 +202,6 @@ uint8_t const kDescHidGamepad[] = {
     0xC0,                          // End Collection
 };
 
-uint8_t const kDescConfig[] = {
-    TUD_CONFIG_DESCRIPTOR(1, kItfTotal, 0,
-                          TUD_CONFIG_DESC_LEN + 3 * TUD_HID_DESC_LEN,
-                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-    TUD_HID_DESCRIPTOR(kItfKeyboard, 0, HID_ITF_PROTOCOL_NONE,
-                       sizeof(kDescHidKeyboard),
-                       kEpnKeyboard, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
-    TUD_HID_DESCRIPTOR(kItfMouse, 0, HID_ITF_PROTOCOL_NONE,
-                       sizeof(kDescHidMouse),
-                       kEpnMouse, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
-    TUD_HID_DESCRIPTOR(kItfGamepad, 0, HID_ITF_PROTOCOL_NONE,
-                       sizeof(kDescHidGamepad),
-                       kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
-};
-
 uint8_t const kDescHidDs4[] = {
     0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
     0x09, 0x05,                    // Usage (Game Pad)
@@ -266,6 +253,50 @@ uint8_t const kDescHidDs4[] = {
     0xC0,                          // End Collection
 };
 
+uint8_t const kDescConfigKbm[] = {
+    TUD_CONFIG_DESCRIPTOR(1, kItfKbmTotal, 0,
+                          TUD_CONFIG_DESC_LEN + 2 * TUD_HID_DESC_LEN,
+                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_HID_DESCRIPTOR(kItfKeyboard, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidKeyboard),
+                       kEpnKeyboard, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(kItfMouse, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidMouse),
+                       kEpnMouse, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+};
+
+uint8_t const kDescConfigGamepad[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0,
+                          TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN,
+                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE,
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+                       sizeof(kDescHidDs4),
+#else
+                       sizeof(kDescHidGamepad),
+#endif
+                       kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+};
+
+uint8_t const kDescConfigHybrid[] = {
+    TUD_CONFIG_DESCRIPTOR(1, kItfHybridTotal, 0,
+                          TUD_CONFIG_DESC_LEN + 3 * TUD_HID_DESC_LEN,
+                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_HID_DESCRIPTOR(kItfKeyboard, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidKeyboard),
+                       kEpnKeyboard, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(kItfMouse, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidMouse),
+                       kEpnMouse, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(kItfGamepad, 0, HID_ITF_PROTOCOL_NONE,
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+                       sizeof(kDescHidDs4),
+#else
+                       sizeof(kDescHidGamepad),
+#endif
+                       kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+};
+
 // ── Device descriptors (mode-selected at runtime) ──────────────────────────
 
 tusb_desc_device_t const kDescDevice = {
@@ -280,10 +311,10 @@ char const* kStringDescriptors[] = {
     nullptr,
 #if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
     "Sony Interactive Entertainment",
-    "DualPakka DS4 Composite",
+    "DualPakka DS4 Remapper",
 #else
     "Google LLC",
-    "DualPakka Composite Remapper",
+    "DualPakka Remapper",
 #endif
 };
 
@@ -297,20 +328,67 @@ extern "C" uint8_t const* tud_descriptor_device_cb() {
 
 extern "C" uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
   (void)index;
-  return kDescConfig;
+  switch (mode::GetActive()) {
+    case mode::Mode::kKeyboardMouse:
+      return kDescConfigKbm;
+    case mode::Mode::kGamepad:
+      return kDescConfigGamepad;
+    case mode::Mode::kHybrid:
+      return kDescConfigHybrid;
+#if GYRO_STICK_PROFILE_ENABLE
+    case mode::Mode::kGyroStick:
+      return kDescConfigGamepad;
+#endif
+    default:
+      return kDescConfigKbm;
+  }
 }
 
 extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
-  switch (instance) {
-    case kItfKeyboard:
-      return kDescHidKeyboard;
-    case kItfMouse:
-      return kDescHidMouse;
-    case kItfGamepad:
+  switch (mode::GetActive()) {
+    case mode::Mode::kKeyboardMouse:
+      switch (instance) {
+        case 0:
+          return kDescHidKeyboard;
+        case 1:
+          return kDescHidMouse;
+        default:
+          return nullptr;
+      }
+    case mode::Mode::kGamepad:
+      if (instance != 0) {
+        return nullptr;
+      }
 #if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
       return kDescHidDs4;
 #else
       return kDescHidGamepad;
+#endif
+    case mode::Mode::kHybrid:
+      switch (instance) {
+        case 0:
+          return kDescHidKeyboard;
+        case 1:
+          return kDescHidMouse;
+        case 2:
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+          return kDescHidDs4;
+#else
+          return kDescHidGamepad;
+#endif
+        default:
+          return nullptr;
+      }
+#if GYRO_STICK_PROFILE_ENABLE
+    case mode::Mode::kGyroStick:
+      if (instance != 0) {
+        return nullptr;
+      }
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+      return kDescHidDs4;
+#else
+      return kDescHidGamepad;
+#endif
 #endif
     default:
       return nullptr;

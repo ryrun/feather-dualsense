@@ -14,7 +14,7 @@ extern "C" {
 
 #define CFG_TUD_ENABLED 1
 #define CFG_TUD_ENDPOINT0_SIZE 64
-// Composite output exposes keyboard, mouse, and Stadia gamepad interfaces.
+// Maximum HID interfaces; the active profile may enumerate fewer.
 #define CFG_TUD_HID 3
 #define CFG_TUD_CDC 0
 #define CFG_TUD_MSC 0

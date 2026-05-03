@@ -826,8 +826,8 @@ void ApplyModeLightbar(mode::Mode active_mode) {
 void HandleModeSwitch(SwipeDirection direction) {
   const mode::Mode previous_mode = g_controller.active_mode;
   const mode::Mode next_mode =
-      (direction == SwipeDirection::kPrevious) ? mode::PreviousRuntime()
-                                               : mode::NextRuntime();
+      (direction == SwipeDirection::kPrevious) ? mode::Previous(previous_mode)
+                                               : mode::Next(previous_mode);
   g_controller.active_mode = next_mode;
 
   g_controller.buttons = 0;
@@ -847,7 +847,9 @@ void HandleModeSwitch(SwipeDirection direction) {
   }
   QueueGamepadClear();
 
-  ApplyModeLightbar(next_mode);
+  FlushPendingOutputs();
+  sleep_ms(20);
+  mode::PersistAndReboot(next_mode);
 }
 
 // Updates keyboard/mouse state for a touchpad click event.
@@ -1233,12 +1235,15 @@ extern "C" void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
   if (g_controller.active &&
       g_controller.dev_addr == dev_addr &&
       g_controller.instance == instance) {
-    if (g_controller.active_mode == mode::Mode::kGamepad) {
+    if (device_out::HasGamepad()) {
       device_out::SendGamepad(NeutralGamepadReport());
-    } else {
+    }
+    if (device_out::HasKeyboard()) {
       device_out::KeyboardReport empty_keyboard = {};
-      device_out::MouseReport empty_mouse = {};
       device_out::SendKeyboard(empty_keyboard);
+    }
+    if (device_out::HasMouse()) {
+      device_out::MouseReport empty_mouse = {};
       device_out::SendMouse(empty_mouse);
     }
     ClearHidState();
@@ -1265,8 +1270,6 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   const SwipeDirection swipe_direction = ParseSwipeGesture(touch);
   if (swipe_direction != SwipeDirection::kNone) {
     HandleModeSwitch(swipe_direction);
-    FlushPendingOutputs();
-    ArmReceiveReport();
     return;
   }
   FlushPendingOutputs();

@@ -7,6 +7,47 @@
 
 namespace device_out {
 
+namespace {
+
+constexpr uint8_t kNoHidInstance = 0xff;
+
+uint8_t KeyboardInstance() {
+  switch (mode::GetActive()) {
+    case mode::Mode::kKeyboardMouse:
+    case mode::Mode::kHybrid:
+      return 0;
+    default:
+      return kNoHidInstance;
+  }
+}
+
+uint8_t MouseInstance() {
+  switch (mode::GetActive()) {
+    case mode::Mode::kKeyboardMouse:
+    case mode::Mode::kHybrid:
+      return 1;
+    default:
+      return kNoHidInstance;
+  }
+}
+
+uint8_t GamepadInstance() {
+  switch (mode::GetActive()) {
+    case mode::Mode::kGamepad:
+      return 0;
+    case mode::Mode::kHybrid:
+      return 2;
+#if GYRO_STICK_PROFILE_ENABLE
+    case mode::Mode::kGyroStick:
+      return 0;
+#endif
+    default:
+      return kNoHidInstance;
+  }
+}
+
+}  // namespace
+
 void Init() {
   board_init();
   tusb_init();
@@ -16,28 +57,49 @@ void Task() {
   tud_task();
 }
 
+bool HasKeyboard() {
+  return KeyboardInstance() != kNoHidInstance;
+}
+
+bool HasMouse() {
+  return MouseInstance() != kNoHidInstance;
+}
+
+bool HasGamepad() {
+  return GamepadInstance() != kNoHidInstance;
+}
+
 bool SendKeyboard(const KeyboardReport& report) {
-  if (!tud_ready() || !tud_hid_n_ready(0)) {
+  const uint8_t instance = KeyboardInstance();
+  if (instance == kNoHidInstance ||
+      !tud_ready() ||
+      !tud_hid_n_ready(instance)) {
     return false;
   }
 
-  return tud_hid_n_report(0, kReportIdKeyboard, &report, sizeof(report));
+  return tud_hid_n_report(instance, kReportIdKeyboard, &report, sizeof(report));
 }
 
 bool SendMouse(const MouseReport& report) {
-  if (!tud_ready() || !tud_hid_n_ready(1)) {
+  const uint8_t instance = MouseInstance();
+  if (instance == kNoHidInstance ||
+      !tud_ready() ||
+      !tud_hid_n_ready(instance)) {
     return false;
   }
 
-  return tud_hid_n_report(1, kReportIdMouse, &report, sizeof(report));
+  return tud_hid_n_report(instance, kReportIdMouse, &report, sizeof(report));
 }
 
 bool SendGamepad(const GamepadReport& report) {
-  if (!tud_ready() || !tud_hid_n_ready(2)) {
+  const uint8_t instance = GamepadInstance();
+  if (instance == kNoHidInstance ||
+      !tud_ready() ||
+      !tud_hid_n_ready(instance)) {
     return false;
   }
 
-  return tud_hid_n_report(2, kReportIdGamepad, &report, sizeof(report));
+  return tud_hid_n_report(instance, kReportIdGamepad, &report, sizeof(report));
 }
 
 }  // namespace device_out

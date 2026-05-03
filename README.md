@@ -1,6 +1,6 @@
 # Feather DualSense HID Remapper
 
-Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723. The firmware accepts exactly one wired Sony DualSense or DualSense Edge controller on the USB host port and exposes a composite USB HID device to the PC:
+Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723. The firmware accepts exactly one wired Sony DualSense or DualSense Edge controller on the USB host port and exposes a profile-specific USB HID device to the PC:
 
 - USB HID keyboard
 - USB HID mouse
@@ -13,7 +13,7 @@ The active logical profile controls which reports are sent:
 - **Hybrid profile** – forwards gamepad reports and adds touch-activated gyro mouse
 - **Gyro Stick profile** – optional profile that forwards gamepad reports and maps touch-activated gyro to the right stick
 
-Perform a **full-width touchpad swipe** (single finger, edge to edge) to switch profiles: left→right selects the next profile, right→left selects the previous profile. The default profile order is KBM → Gamepad → Hybrid → KBM. If `FEATHER_GYRO_STICK_PROFILE=ON` is configured, the order is KBM → Gamepad → Hybrid → Gyro Stick → KBM. On this composite HID experiment branch, the device switches immediately without rebooting or changing its USB enumeration. Profile switching is runtime-only and always starts in KBM profile after boot.
+Perform a **full-width touchpad swipe** (single finger, edge to edge) to switch profiles: left→right selects the next profile, right→left selects the previous profile. The default profile order is KBM → Gamepad → Hybrid → KBM. If `FEATHER_GYRO_STICK_PROFILE=ON` is configured, the order is KBM → Gamepad → Hybrid → Gyro Stick → KBM. Profile switches are written to flash and reboot the board so USB re-enumerates with the selected profile's HID interface set. Empty or invalid flash storage falls back to KBM profile.
 
 There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
 
@@ -33,7 +33,7 @@ A separate gamepad mode is included for games where native controller input work
 - Pico board variable: `PICO_BOARD=feather_host`
 - Host wiring: PIO USB D+ on GPIO 16, D− on GPIO 17, VBUS enable on GPIO 18
 - Input: wired USB controller on the Feather USB host port
-- Output: HID composite device to the PC
+- Output: profile-specific HID device to the PC
 
 ## Supported Controllers
 
@@ -51,18 +51,20 @@ All other USB devices are ignored.
 
 ### KBM profile
 
-The Feather sends keyboard and mouse reports through the composite HID device:
+The Feather enumerates keyboard and mouse HID interfaces:
 
 - **Keyboard**: 14KRO keyboard report
 - **Mouse**: relative mouse with 16-bit signed X/Y axes
 
 ### Gamepad profile
 
-The Feather sends gamepad reports through a HID interface that mimics the selected gamepad backend. Stadia Controller is the default backend; DualShock 4 can be selected at compile time. Analog sticks, D-pad hat, and all digital buttons are forwarded.
+The Feather enumerates only a gamepad HID interface that mimics the selected gamepad backend. Stadia Controller is the default backend; DualShock 4 can be selected at compile time. Analog sticks, D-pad hat, and all digital buttons are forwarded.
 
 ### Hybrid profile
 
-Hybrid profile uses the same gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard or mouse actions in this profile.
+Hybrid profile enumerates keyboard, mouse, and gamepad HID interfaces. It uses the same gamepad mapping as Gamepad profile and additionally sends touch-activated gyro movement as relative mouse X/Y. Controller buttons are not mapped to keyboard actions in this profile yet, but the keyboard interface is present for future hybrid mappings.
+
+On macOS, Hybrid profile currently works with the Stadia backend only. The DualShock 4 firmware can still be built, but its mixed mouse+gamepad Hybrid profile does not work reliably on macOS at this time.
 
 ### Gyro Stick profile
 
@@ -153,7 +155,7 @@ Axis scale factors: X = 1.0, Y = 0.7.
 
 ## Mode Switch
 
-Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to switch profiles. Left→right selects the next profile; right→left selects the previous profile. The default order is KBM, Gamepad, and Hybrid. If `FEATHER_GYRO_STICK_PROFILE` is enabled at configure time, Gyro Stick profile is added after Hybrid. The device switches immediately without rebooting.
+Perform a **full-width touchpad swipe** (single finger from one edge to the other, ≥ ~80 % of pad width) to switch profiles. Left→right selects the next profile; right→left selects the previous profile. The default order is KBM, Gamepad, and Hybrid. If `FEATHER_GYRO_STICK_PROFILE` is enabled at configure time, Gyro Stick profile is added after Hybrid. The selected profile is saved to flash and the board reboots so the USB HID interfaces match the profile.
 
 The swipe gesture works in all profiles. A second finger on the pad at any point during the swipe cancels it.
 
@@ -198,10 +200,10 @@ Put the Feather into BOOTSEL mode and copy the UF2 file to the mounted RP2040 ma
 Check that the Feather enumerates correctly:
 
 ```sh
-# Stadia backend — expect keyboard, mouse, and Stadia Controller HID interfaces
+# Stadia backend — expect profile-dependent HID interfaces
 lsusb -v -d 18d1:9400
 
-# DualShock 4 backend — expect keyboard, mouse, and DualShock 4 HID interfaces
+# DualShock 4 backend — expect profile-dependent HID interfaces
 lsusb -v -d 054c:09cc
 ```
 

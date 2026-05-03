@@ -72,6 +72,9 @@ struct GamepadReport {
 
 void Init();
 void Task();
+bool HasKeyboard();
+bool HasMouse();
+bool HasGamepad();
 bool SendKeyboard(const KeyboardReport& report);
 bool SendMouse(const MouseReport& report);
 bool SendGamepad(const GamepadReport& report);

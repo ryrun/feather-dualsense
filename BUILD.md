@@ -50,11 +50,13 @@ The default build produces both gamepad backend variants:
 
 LTO is disabled by default (`FEATHER_REMAPPER_ENABLE_LTO=OFF`) because `-flto` is incompatible with the pico-sdk's `--wrap` linker symbol mechanism.
 
-This composite HID experiment supports KBM, gamepad, and hybrid gamepad+gyro-mouse profiles by default. The optional gyro-stick profile can be enabled at configure time. The gamepad backend is selected by flashing either the Stadia Controller UF2 or the DualShock 4 UF2.
+The firmware supports KBM, gamepad, and hybrid keyboard+mouse+gamepad profiles by default. The optional gyro-stick profile can be enabled at configure time. The gamepad backend is selected by flashing either the Stadia Controller UF2 or the DualShock 4 UF2.
 
 The optional gyro-stick profile is disabled by default. Enable it at configure time with `-DFEATHER_GYRO_STICK_PROFILE=ON`.
 
-Profile switching is runtime-only on this branch. The firmware always starts in KBM profile after boot, and swipe changes are not written to flash.
+Profile switching writes the selected profile to flash and reboots the board. On the next boot, USB re-enumerates with that profile's HID interface set. Empty or invalid flash storage falls back to KBM profile.
+
+On macOS, use the Stadia backend for Hybrid profile testing. The DualShock 4 backend builds, but its mixed mouse+gamepad Hybrid profile currently does not work reliably on macOS.
 
 ## macOS Local Toolchain
 
@@ -81,15 +83,15 @@ make -j$(sysctl -n hw.ncpu)
 
 ## Smoke Test
 
-1. Flash `build/feather_remapper_stadia.uf2` or `build/feather_remapper_ds4.uf2`.
+1. Flash `build/feather_remapper_stadia.uf2` or `build/feather_remapper_ds4.uf2`. Use the Stadia UF2 when testing Hybrid profile on macOS.
 2. Connect the Feather device USB port to the PC.
 3. Connect a wired DualSense or DualSense Edge to the Feather USB host Type-A port.
 4. Confirm the PC sees a keyboard and mouse.
 5. Press Cross for `F`, Circle for `V`, Square for `R`, Triangle for `T`.
 6. Press L2 for right mouse button and R2 for left mouse button.
 7. Touch the touchpad and move the controller to confirm gyro mouse movement.
-8. Perform a left-to-right full-width touchpad swipe and confirm the device switches to gamepad profile without USB re-enumeration.
-9. Perform another left-to-right full-width touchpad swipe and confirm the purple hybrid profile sends gamepad input plus touch-activated gyro mouse.
+8. Perform a left-to-right full-width touchpad swipe and confirm the board reboots and re-enumerates as the gamepad profile.
+9. Perform another left-to-right full-width touchpad swipe and confirm the board reboots into the purple hybrid profile, sending gamepad input plus touch-activated gyro mouse.
 10. Perform a right-to-left full-width touchpad swipe and confirm the device switches back to gamepad profile.
 11. If `FEATHER_GYRO_STICK_PROFILE=ON` was configured, switch forward to the green gyro-stick profile and confirm it sends gamepad input plus touch-activated gyro right-stick output.
 
