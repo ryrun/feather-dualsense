@@ -17,7 +17,9 @@ enum InterfaceNumber : uint8_t {
   kItfKeyboard = 0,
   kItfMouse,
   kItfGamepad,
+  kItfGamepadConfig = 1,
   kItfKbmTotal = 2,
+  kItfGamepadTotal = 2,
   kItfHybridTotal = 3,
 };
 
@@ -25,6 +27,7 @@ enum EndpointAddress : uint8_t {
   kEpnKeyboard = 0x81,
   kEpnMouse = 0x82,
   kEpnGamepad = 0x83,
+  kEpnGamepadOut = 0x02,
 };
 
 #if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
@@ -106,6 +109,20 @@ uint8_t const kDescHidMouse[] = {
     0xC0,                               // End Collection
     0xC0,                               // End Collection
 };
+
+#if !FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+uint8_t const kDescHidConfig[] = {
+    0x06, 0x00, 0xFF,                     // Usage Page (Vendor Defined 0xFF00)
+    0x09, 0x20,                           // Usage (0x20)
+    0xA1, 0x01,                           // Collection (Application)
+    0x09, 0x20,                           //   Usage (0x20)
+    0x85, 0x64,                           //   Report ID (100)
+    0x75, 0x08,                           //   Report Size (8)
+    0x95, 0x20,                           //   Report Count (32)
+    0xB1, 0x02,                           //   Feature (Data,Var,Abs)
+    0xC0,                                 // End Collection
+};
+#endif
 
 // ── Gamepad interface ──────────────────────────────────────────────────────
 
@@ -266,16 +283,27 @@ uint8_t const kDescConfigKbm[] = {
 };
 
 uint8_t const kDescConfigGamepad[] = {
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
     TUD_CONFIG_DESCRIPTOR(1, 1, 0,
                           TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN,
                           TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE,
-#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
                        sizeof(kDescHidDs4),
-#else
-                       sizeof(kDescHidGamepad),
-#endif
                        kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+#else
+    TUD_CONFIG_DESCRIPTOR(1, kItfGamepadTotal, 0,
+                          TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN +
+                              TUD_HID_DESC_LEN,
+                          0, 100),
+    TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidGamepad),
+                             kEpnGamepadOut, kEpnKeyboard,
+                             CFG_TUD_HID_EP_BUFSIZE, REPORT_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(kItfGamepadConfig, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(kDescHidConfig),
+                       kEpnGamepad, CFG_TUD_HID_EP_BUFSIZE,
+                       REPORT_INTERVAL_MS),
+#endif
 };
 
 uint8_t const kDescConfigHybrid[] = {
@@ -356,13 +384,20 @@ extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
           return nullptr;
       }
     case mode::Mode::kGamepad:
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
       if (instance != 0) {
         return nullptr;
       }
-#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
       return kDescHidDs4;
 #else
-      return kDescHidGamepad;
+      switch (instance) {
+        case 0:
+          return kDescHidGamepad;
+        case kItfGamepadConfig:
+          return kDescHidConfig;
+        default:
+          return nullptr;
+      }
 #endif
     case mode::Mode::kHybrid:
       switch (instance) {
@@ -381,13 +416,20 @@ extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
       }
 #if GYRO_STICK_PROFILE_ENABLE
     case mode::Mode::kGyroStick:
+#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
       if (instance != 0) {
         return nullptr;
       }
-#if FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
       return kDescHidDs4;
 #else
-      return kDescHidGamepad;
+      switch (instance) {
+        case 0:
+          return kDescHidGamepad;
+        case kItfGamepadConfig:
+          return kDescHidConfig;
+        default:
+          return nullptr;
+      }
 #endif
 #endif
     default:

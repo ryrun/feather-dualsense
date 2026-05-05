@@ -10,6 +10,11 @@ namespace device_out {
 namespace {
 
 constexpr uint8_t kNoHidInstance = 0xff;
+#if !FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+constexpr uint8_t kStadiaConfigInterface = 1;
+constexpr uint8_t kStadiaConfigReportId = 100;
+constexpr uint16_t kStadiaConfigReportSize = 32;
+#endif
 
 uint8_t g_keyboard_instance = kNoHidInstance;
 uint8_t g_mouse_instance = kNoHidInstance;
@@ -49,6 +54,21 @@ uint8_t GamepadInstanceForMode(mode::Mode active_mode) {
       return kNoHidInstance;
   }
 }
+
+#if !FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+bool HasStadiaConfigInterface() {
+  const mode::Mode active_mode = mode::GetActive();
+  if (active_mode == mode::Mode::kGamepad) {
+    return true;
+  }
+#if GYRO_STICK_PROFILE_ENABLE
+  if (active_mode == mode::Mode::kGyroStick) {
+    return true;
+  }
+#endif
+  return false;
+}
+#endif
 
 }  // namespace
 
@@ -118,6 +138,17 @@ extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance,
                                            hid_report_type_t report_type,
                                            uint8_t* buffer,
                                            uint16_t reqlen) {
+#if !FEATHER_GAMEPAD_BACKEND_DUALSHOCK4
+  if (device_out::HasStadiaConfigInterface() &&
+      instance == device_out::kStadiaConfigInterface &&
+      report_id == device_out::kStadiaConfigReportId &&
+      report_type == HID_REPORT_TYPE_FEATURE &&
+      reqlen >= device_out::kStadiaConfigReportSize) {
+    memset(buffer, 0, device_out::kStadiaConfigReportSize);
+    return device_out::kStadiaConfigReportSize;
+  }
+#endif
+
   (void)instance;
   (void)report_id;
   (void)report_type;
