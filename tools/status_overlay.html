@@ -603,6 +603,8 @@
                 [1, "DualSense"],
                 [2, "DualSense Edge"],
             ]);
+            const STICK_ACTIVE_ON_THRESHOLD = 0.08;
+            const STICK_ACTIVE_OFF_THRESHOLD = 0.04;
 
             const state = {
                 scene: null,
@@ -1079,7 +1081,11 @@
             function updateSceneStickRing(stickId, x, y) {
                 const ringGroup = state.sceneStickRings.get(stickId);
                 if (!ringGroup) return;
-                updateStickRingAppearance(ringGroup, Math.hypot(x, y) > 0.05);
+                const magnitude = Math.hypot(x, y);
+                const active = ringGroup.userData.active
+                    ? magnitude > STICK_ACTIVE_OFF_THRESHOLD
+                    : magnitude > STICK_ACTIVE_ON_THRESHOLD;
+                updateStickRingAppearance(ringGroup, active);
             }
 
             function updateLeftStickTilt(x, y) {
