@@ -27,6 +27,8 @@ set_source_files_properties(
 option(FEATHER_REMAPPER_DEBUG "Enable verbose UART report logging" OFF)
 option(FEATHER_REMAPPER_ENABLE_LTO "Enable link-time optimization in Release builds" OFF)
 option(FEATHER_GYRO_STICK_PROFILE "Enable the optional gyro-to-right-stick runtime profile" OFF)
+option(FEATHER_STATUS_HID "Enable the vendor-defined status HID interface" ON)
+set(FEATHER_STATUS_HID_RATE_HZ "60" CACHE STRING "Status HID report rate in Hz")
 
 function(add_feather_remapper_target target_name backend_dualshock4)
   add_executable(${target_name}
@@ -34,6 +36,7 @@ function(add_feather_remapper_target target_name backend_dualshock4)
     src/mode.cc
     src/host_reader.cc
     src/device_out.cc
+    src/status_hid.cc
     src/usb_descriptors.cc
   )
 
@@ -54,6 +57,8 @@ function(add_feather_remapper_target target_name backend_dualshock4)
     FEATHER_REMAPPER_DEBUG=$<BOOL:${FEATHER_REMAPPER_DEBUG}>
     FEATHER_GAMEPAD_BACKEND_DUALSHOCK4=${backend_dualshock4}
     GYRO_STICK_PROFILE_ENABLE=$<BOOL:${FEATHER_GYRO_STICK_PROFILE}>
+    FEATHER_STATUS_HID_ENABLE=$<BOOL:${FEATHER_STATUS_HID}>
+    FEATHER_STATUS_HID_RATE_HZ=${FEATHER_STATUS_HID_RATE_HZ}
   )
 
   target_compile_options(${target_name} PRIVATE

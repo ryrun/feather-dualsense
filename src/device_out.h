@@ -13,6 +13,9 @@ enum ReportId : uint8_t {
 #else
   kReportIdGamepad = 3,  // Stadia Controller: Report ID 3
 #endif
+#if FEATHER_STATUS_HID_ENABLE
+  kReportIdStatus = 0x7e,
+#endif
 };
 
 struct KeyboardReport {
@@ -75,8 +78,14 @@ void Task();
 bool HasKeyboard();
 bool HasMouse();
 bool HasGamepad();
+#if FEATHER_STATUS_HID_ENABLE
+bool HasStatus();
+#endif
 bool SendKeyboard(const KeyboardReport& report);
 bool SendMouse(const MouseReport& report);
 bool SendGamepad(const GamepadReport& report);
+#if FEATHER_STATUS_HID_ENABLE
+bool SendStatus(uint8_t const* report, uint16_t len);
+#endif
 
 }  // namespace device_out

@@ -54,6 +54,8 @@ The firmware supports KBM, gamepad, and hybrid keyboard+mouse+gamepad profiles b
 
 The optional gyro-stick profile is disabled by default. Enable it at configure time with `-DFEATHER_GYRO_STICK_PROFILE=ON`.
 
+The vendor-defined Status HID interface is enabled by default and is included in every profile. It sends a 63-byte binary payload plus report ID at 60 Hz for overlays and local tools. Disable it with `-DFEATHER_STATUS_HID=OFF`, or change the rate with `-DFEATHER_STATUS_HID_RATE_HZ=30`. The exact report layout is documented in `README.md`.
+
 Profile switching writes the selected profile to flash and reboots the board. On the next boot, USB re-enumerates with that profile's HID interface set. Empty or invalid flash storage falls back to KBM profile.
 
 On macOS, use the Stadia backend for Hybrid profile testing. The DualShock 4 backend builds, but its mixed mouse+gamepad Hybrid profile currently does not work reliably on macOS.
@@ -86,7 +88,7 @@ make -j$(sysctl -n hw.ncpu)
 1. Flash `build/feather_remapper_stadia.uf2` or `build/feather_remapper_ds4.uf2`. Use the Stadia UF2 when testing Hybrid profile on macOS.
 2. Connect the Feather device USB port to the PC.
 3. Connect a wired DualSense or DualSense Edge to the Feather USB host Type-A port.
-4. Confirm the PC sees a keyboard and mouse.
+4. Confirm the PC sees keyboard, mouse, and the vendor-defined Status HID interface.
 5. Press Cross for `F`, Circle for `V`, Square for `R`, Triangle for `T`.
 6. Press L2 for right mouse button and R2 for left mouse button.
 7. Touch the touchpad and move the controller to confirm gyro mouse movement.

@@ -15,7 +15,7 @@ extern "C" {
 #define CFG_TUD_ENABLED 1
 #define CFG_TUD_ENDPOINT0_SIZE 64
 // Maximum HID interfaces; the active profile may enumerate fewer.
-#define CFG_TUD_HID 3
+#define CFG_TUD_HID (3 + FEATHER_STATUS_HID_ENABLE)
 #define CFG_TUD_CDC 0
 #define CFG_TUD_MSC 0
 #define CFG_TUD_MIDI 0

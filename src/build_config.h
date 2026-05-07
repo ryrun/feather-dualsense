@@ -23,6 +23,14 @@
 #define GYRO_STICK_PROFILE_ENABLE 0
 #endif
 
+#ifndef FEATHER_STATUS_HID_ENABLE
+#define FEATHER_STATUS_HID_ENABLE 1
+#endif
+
+#ifndef FEATHER_STATUS_HID_RATE_HZ
+#define FEATHER_STATUS_HID_RATE_HZ 60
+#endif
+
 // Gyro-to-right-stick sensitivity in Q8. Negative matches mouse X direction.
 #define GYRO_STICK_SENSITIVITY_Q8 (-64)
 // Assumed game right-stick deadzone, as percent of full deflection.

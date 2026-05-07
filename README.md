@@ -5,6 +5,7 @@ Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723
 - USB HID keyboard
 - USB HID mouse
 - Compile-time selected USB HID gamepad backend: Google Stadia Controller by default (VID `0x18D1`, PID `0x9400`) or DualShock 4 (VID `0x054C`, PID `0x09CC`)
+- Optional vendor-defined status HID interface for overlays, enabled by default
 
 The active logical profile controls which reports are sent:
 
@@ -69,6 +70,51 @@ On macOS, Hybrid profile currently works with the Stadia backend only. The DualS
 ### Gyro Stick profile
 
 Gyro Stick profile is enabled with `-DFEATHER_GYRO_STICK_PROFILE=ON`, which sets `GYRO_STICK_PROFILE_ENABLE` at compile time. It uses the same gamepad mapping as Gamepad profile. While the touchpad is touched, gyro movement is mapped to the right analog stick instead of mouse X/Y. When the touchpad is not touched, the physical right stick is forwarded normally.
+
+### Status HID
+
+The firmware exposes a vendor-defined Status HID interface in every profile by default. It is intended for browser overlays or small bridge tools that need controller state without parsing the gamepad, keyboard, or mouse outputs. The status interface uses vendor usage page `0xFF42`, report ID `0x7E`, and sends a fixed binary input report at 60 Hz. The USB interrupt packet is 64 bytes total: 1 byte report ID plus 63 bytes of payload.
+
+All multi-byte fields are little-endian. The report payload excludes the report ID:
+
+| Byte | Type | Field |
+| --- | --- | --- |
+| 0 | `uint8` | Report version, currently `1` |
+| 1 | `uint8` | Controller type: `0` unknown, `1` DualSense, `2` DualSense Edge |
+| 2-3 | `uint16` | Sequence counter, incremented after each accepted status report |
+| 4-11 | `uint64` | Raw controller button bitmask using the `mapping::Button` order in `src/mapping.h` |
+| 12 | `uint8` | Left stick X, raw DualSense value |
+| 13 | `uint8` | Left stick Y, raw DualSense value |
+| 14 | `uint8` | Right stick X, raw DualSense value |
+| 15 | `uint8` | Right stick Y, raw DualSense value |
+| 16 | `uint8` | L2 analog, raw DualSense value |
+| 17 | `uint8` | R2 analog, raw DualSense value |
+| 18-19 | `uint16` | Flags |
+| 20 | `uint8` | Touch point 0 ID |
+| 21 | `uint8` | Touch point 1 ID |
+| 22-23 | `uint16` | Touch point 0 X |
+| 24-25 | `uint16` | Touch point 0 Y |
+| 26-27 | `uint16` | Touch point 1 X |
+| 28-29 | `uint16` | Touch point 1 Y |
+| 30-31 | `int16` | Gyro X, raw DualSense value |
+| 32-33 | `int16` | Gyro Y, raw DualSense value |
+| 34-35 | `int16` | Gyro Z, raw DualSense value |
+| 36-37 | `int16` | Accelerometer X, raw DualSense value |
+| 38-39 | `int16` | Accelerometer Y, raw DualSense value |
+| 40-41 | `int16` | Accelerometer Z, raw DualSense value |
+| 42-62 | `uint8[21]` | Reserved, currently zero |
+
+Status flags:
+
+| Bit | Meaning |
+| --- | --- |
+| 0 | Controller connected |
+| 1 | Touch point 0 active |
+| 2 | Touch point 1 active |
+| 3 | Gyro mouse armed |
+| 4 | Gyro stick armed |
+
+`gyro_mouse_armed` is set while the touchpad is touched in KBM or Hybrid profile. `gyro_stick_armed` is set while the touchpad is touched in Gyro Stick profile. The status report uses raw sensor values only; scaling, smoothing, 2D/3D rendering, and unit conversion belong in the overlay.
 
 ## KBM Mapping
 

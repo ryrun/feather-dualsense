@@ -10,6 +10,7 @@
 #include "mapping.h"
 #include "mode.h"
 #include "pico/stdlib.h"
+#include "status_hid.h"
 #include "tusb.h"
 
 // Minimal PIO-USB endpoint access for interval patching.
@@ -477,6 +478,44 @@ TouchState ParseTouchState(uint8_t const* report, uint16_t len) {
   }
 
   return touch;
+}
+
+status_hid::TouchPoint StatusTouchPoint(const TouchPoint& point) {
+  return {point.active, point.id, point.x, static_cast<uint16_t>(point.y)};
+}
+
+status_hid::ControllerType ControllerTypeFromPid(uint16_t pid) {
+  switch (pid) {
+    case mapping::kDualSensePid:
+      return status_hid::ControllerType::kDualSense;
+    case mapping::kDualSenseEdgePid:
+    case mapping::kDualSenseEdgeAltPid:
+      return status_hid::ControllerType::kDualSenseEdge;
+    default:
+      return status_hid::ControllerType::kUnknown;
+  }
+}
+
+bool GyroMouseArmed(mode::Mode active_mode, const TouchState& touch) {
+#if GYRO_MOUSE_ENABLE
+  return touch.any_active &&
+         (active_mode == mode::Mode::kKeyboardMouse ||
+          active_mode == mode::Mode::kHybrid);
+#else
+  (void)active_mode;
+  (void)touch;
+  return false;
+#endif
+}
+
+bool GyroStickArmed(mode::Mode active_mode, const TouchState& touch) {
+#if GYRO_STICK_PROFILE_ENABLE
+  return touch.any_active && active_mode == mode::Mode::kGyroStick;
+#else
+  (void)active_mode;
+  (void)touch;
+  return false;
+#endif
 }
 
 // Updates tracking state for one touch point and accumulates Y delta.
@@ -1201,6 +1240,7 @@ extern "C" void tuh_hid_mount_cb(uint8_t dev_addr,
   g_controller.allowed_device_mounted = true;
   g_controller.allowed_dev_addr = dev_addr;
   SetControllerLed(true);
+  status_hid::SetConnected(ControllerTypeFromPid(pid));
 
   ApplyModeLightbar(g_controller.active_mode);
   // Force the DualSense interrupt IN endpoint to 1ms interval (1000 Hz).
@@ -1235,6 +1275,7 @@ extern "C" void tuh_umount_cb(uint8_t dev_addr) {
   if (g_controller.allowed_device_mounted &&
       g_controller.allowed_dev_addr == dev_addr) {
     ResetState();
+    status_hid::SetDisconnected();
     SetControllerLed(false);
   }
 }
@@ -1255,6 +1296,7 @@ extern "C" void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
       device_out::SendMouse(empty_mouse);
     }
     ClearHidState();
+    status_hid::SetDisconnected();
   }
 }
 
@@ -1273,6 +1315,11 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
   const TouchState touch = ParseTouchState(report, len);
+  status_hid::UpdateFromInput(report, len, raw_buttons,
+                              StatusTouchPoint(touch.point[0]),
+                              StatusTouchPoint(touch.point[1]),
+                              GyroMouseArmed(g_controller.active_mode, touch),
+                              GyroStickArmed(g_controller.active_mode, touch));
 
   // Swipe gesture works in all modes.
   const SwipeDirection swipe_direction = ParseSwipeGesture(touch);
