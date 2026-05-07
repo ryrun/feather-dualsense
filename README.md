@@ -138,6 +138,10 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000/tools/status_overlay.html` in a WebHID-capable browser.
 
+![Status overlay showing the DualSense Edge 3D view](docs/images/status-overlay.webp)
+
+[<img src="https://img.youtube.com/vi/DnCKK24FxAs/0.jpg" width="400">](https://www.youtube.com/watch?v=DnCKK24FxAs)
+
 ## KBM Mapping
 
 ### DualSense (standard)
