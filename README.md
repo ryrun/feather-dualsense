@@ -116,6 +116,28 @@ Status flags:
 
 `gyro_mouse_armed` is set while the touchpad is touched in KBM or Hybrid profile. `gyro_stick_armed` is set while the touchpad is touched in Gyro Stick profile. The status report uses raw sensor values only; scaling, smoothing, 2D/3D rendering, and unit conversion belong in the overlay.
 
+A WebHID status overlay is available at `tools/status_overlay.html`. It reads the vendor-defined Status HID report directly from the browser and visualizes the controller state without any native helper process. The overlay currently provides:
+
+- A live 3D DualSense Edge view based on a local `tools/dualsenseende.obj` model
+- Controller pose visualization from raw gyro data, with return-to-center behavior while the controller is still
+- Button highlighting for named OBJ parts, including fallback-rendered Fn and rear paddle buttons when those parts are not present in the OBJ
+- Stick tilt visualization and active-stick rings
+- Two-finger touchpad visualization with moving touch markers on the 3D touchpad surface
+- Raw report, stick, trigger, touch, gyro, accelerometer, and status flag readouts
+- Configurable background and highlight colors stored in browser local storage
+- A fullscreen 3D view for OBS or streaming overlays
+- Automatic WebHID reconnect attempts after profile switches, because the board reboots and re-enumerates USB when the active profile changes
+
+Serve the repository through a local web server before opening the page, because the overlay uses ES module imports for Three.js:
+
+The DualSense Edge OBJ model is not included in this repository. Place a local model at `tools/dualsenseende.obj` if you want the 3D controller view; the status readouts still work without committing that local asset.
+
+```sh
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/tools/status_overlay.html` in a WebHID-capable browser.
+
 ## KBM Mapping
 
 ### DualSense (standard)

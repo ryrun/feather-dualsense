@@ -11,3 +11,4 @@ pico-sdk/
 *.o
 *.a
 .DS_Store
+tools/dualsenseende.obj

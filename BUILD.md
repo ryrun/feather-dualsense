@@ -109,3 +109,13 @@ sudo wireshark
 ```
 
 For latency checks, use a Release build and keep UART debug disabled.
+
+## Status Overlay Test
+
+The minimal WebHID status viewer is `tools/status_overlay.html`. Serve the repository locally and open the page in a Chromium-based browser:
+
+```sh
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/tools/status_overlay.html` and select the DualPakka device.
