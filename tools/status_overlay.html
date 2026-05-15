@@ -605,6 +605,7 @@
             ]);
             const STICK_ACTIVE_ON_THRESHOLD = 0.08;
             const STICK_ACTIVE_OFF_THRESHOLD = 0.04;
+            const TRIGGER_HIGHLIGHT_MIN_MIX = 0.35;
 
             const state = {
                 scene: null,
@@ -818,6 +819,14 @@
                     1,
                 );
                 for (const [id, mesh] of state.sceneButtons) {
+                    if (id === "l2Button" || id === "r2Button") {
+                        updateTriggerHighlight(
+                            id,
+                            mesh.userData.triggerValue || 0,
+                            !!mesh.userData.triggerDigitalActive,
+                        );
+                        continue;
+                    }
                     const active = state.buttonElements
                         .get(id)
                         ?.classList.contains("active");
@@ -829,6 +838,7 @@
                     updateStickRingAppearance(
                         ringGroup,
                         !!ringGroup.userData.active,
+                        ringGroup.userData.strength || 0,
                     );
                 }
                 for (const touchPoint of state.touchPointMeshes) {
@@ -1061,19 +1071,25 @@
                 return pivotGroup;
             }
 
-            function updateStickRingAppearance(ringGroup, active) {
+            function updateStickRingAppearance(ringGroup, active, strength = 0) {
                 if (!ringGroup) return;
+                const normalizedStrength = clamp(strength, 0, 1);
                 ringGroup.userData.active = active;
+                ringGroup.userData.strength = normalizedStrength;
                 const color = new THREE.Color(state.highlightColor);
                 const core = ringGroup.userData.core;
                 const glow = ringGroup.userData.glow;
                 if (core?.material) {
                     core.material.color.copy(color);
-                    core.material.opacity = active ? 0.95 : 0.14;
+                    core.material.opacity = active
+                        ? 0.38 + normalizedStrength * 0.57
+                        : 0.14;
                 }
                 if (glow?.material) {
                     glow.material.color.copy(color);
-                    glow.material.opacity = active ? 0.3 : 0;
+                    glow.material.opacity = active
+                        ? 0.08 + normalizedStrength * 0.24
+                        : 0;
                 }
                 ringGroup.visible = active;
             }
@@ -1085,7 +1101,7 @@
                 const active = ringGroup.userData.active
                     ? magnitude > STICK_ACTIVE_OFF_THRESHOLD
                     : magnitude > STICK_ACTIVE_ON_THRESHOLD;
-                updateStickRingAppearance(ringGroup, active);
+                updateStickRingAppearance(ringGroup, active, magnitude);
             }
 
             function updateLeftStickTilt(x, y) {
@@ -1335,13 +1351,43 @@
                 );
             }
 
-            function updateSceneButtons(buttonMask) {
+            function updateTriggerHighlight(buttonId, value, digitalActive) {
+                const mesh = state.sceneButtons.get(buttonId);
+                if (!mesh?.material) return;
+                const strength = clamp(value / 255, 0, 1);
+                const active = digitalActive || strength > 0;
+                mesh.userData.triggerValue = value;
+                mesh.userData.triggerDigitalActive = digitalActive;
+                const mix = active
+                    ? TRIGGER_HIGHLIGHT_MIN_MIX +
+                      strength * (1 - TRIGGER_HIGHLIGHT_MIN_MIX)
+                    : 0;
+                const color = new THREE.Color(mesh.userData.baseColor).lerp(
+                    new THREE.Color(state.highlightColor),
+                    mix,
+                );
+                mesh.material.color.copy(color);
+            }
+
+            function updateSceneButtons(buttonMask, l2Value = 0, r2Value = 0) {
                 for (const button of BUTTONS) {
                     const active =
                         (buttonMask & (1n << BigInt(button.bit))) !== 0n;
                     state.buttonElements
                         .get(button.id)
                         ?.classList.toggle("active", active);
+                    if (
+                        button.id === "l2Button" ||
+                        button.id === "r2Button"
+                    ) {
+                        const value =
+                            button.id === "l2Button" ? l2Value : r2Value;
+                        state.buttonElements
+                            .get(button.id)
+                            ?.classList.toggle("active", active || value > 0);
+                        updateTriggerHighlight(button.id, value, active);
+                        continue;
+                    }
                     const mesh = state.sceneButtons.get(button.id);
                     if (!mesh?.material) continue;
                     mesh.material.color.set(
@@ -1398,8 +1444,10 @@
                 ids.leftY.textContent = leftY;
                 ids.rightX.textContent = rightX;
                 ids.rightY.textContent = rightY;
-                ids.l2.textContent = v.getUint8(16);
-                ids.r2.textContent = v.getUint8(17);
+                const l2Value = v.getUint8(16);
+                const r2Value = v.getUint8(17);
+                ids.l2.textContent = l2Value;
+                ids.r2.textContent = r2Value;
                 ids.leftState.textContent = `left ${lx.toFixed(2)} / ${ly.toFixed(2)}`;
                 ids.rightState.textContent = `right ${rx.toFixed(2)} / ${ry.toFixed(2)}`;
                 setStick(ids.leftStickDot, lx, ly);
@@ -1462,7 +1510,7 @@
                     ? "model gyro armed"
                     : "model idle";
                 ids.modelState.classList.toggle("on", state.gyroArmed);
-                updateSceneButtons(buttonMask);
+                updateSceneButtons(buttonMask, l2Value, r2Value);
             }
 
             function isStatusDevice(device) {
