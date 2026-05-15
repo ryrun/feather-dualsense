@@ -606,6 +606,10 @@
             const STICK_ACTIVE_ON_THRESHOLD = 0.08;
             const STICK_ACTIVE_OFF_THRESHOLD = 0.04;
             const TRIGGER_HIGHLIGHT_MIN_MIX = 0.35;
+            const TOUCH_TRAIL_LENGTH = 18;
+            const TOUCH_TRAIL_LIFETIME_MS = 420;
+            const TOUCH_TRAIL_MIN_DISTANCE = 0.008;
+            const TOUCH_TRAIL_MAX_OPACITY = 0.46;
 
             const state = {
                 scene: null,
@@ -620,6 +624,9 @@
                 sceneStickPivots: new Map(),
                 sceneStickRings: new Map(),
                 touchPointMeshes: [],
+                touchTrailMeshes: [[], []],
+                touchTrailSamples: [[], []],
+                touchTrailLastPositions: [null, null],
                 buttonElements: new Map(),
                 sceneBackgroundColor: "#000000",
                 highlightColor: "#93f0bd",
@@ -738,17 +745,41 @@
                     return point;
                 });
 
+                state.touchTrailMeshes = [0, 1].map((touchIndex) =>
+                    Array.from({ length: TOUCH_TRAIL_LENGTH }, (_, trailIndex) => {
+                        const trail = new THREE.Mesh(
+                            new THREE.PlaneGeometry(1, radius * 0.52),
+                            new THREE.MeshBasicMaterial({
+                                color: state.highlightColor,
+                                transparent: true,
+                                opacity: 0,
+                                depthWrite: false,
+                                depthTest: false,
+                                side: THREE.DoubleSide,
+                            }),
+                        );
+                        trail.name = `TouchTrail_${touchIndex}_${trailIndex}`;
+                        trail.position.set(
+                            (min.x + max.x) * 0.5,
+                            (min.y + max.y) * 0.5,
+                            z,
+                        );
+                        trail.renderOrder = 4;
+                        trail.visible = false;
+                        parent.add(trail);
+                        return trail;
+                    }),
+                );
+                state.touchTrailSamples = [[], []];
+                state.touchTrailLastPositions = [null, null];
+
                 parent.userData.touchBounds = new THREE.Box3().setFromPoints([
                     min,
                     max,
                 ]);
             }
 
-            function updateTouchPoints(touches) {
-                const bounds =
-                    state.touchPointMeshes[0]?.parent?.userData.touchBounds;
-                if (!bounds) return;
-
+            function getTouchPointPosition(touch, bounds) {
                 const width = bounds.max.x - bounds.min.x;
                 const height = bounds.max.y - bounds.min.y;
                 const paddingX = width * 0.08;
@@ -758,6 +789,88 @@
                 const maxX = bounds.max.x - paddingX;
                 const minY = bounds.min.y + paddingBottom;
                 const maxY = bounds.max.y - paddingTop;
+                return {
+                    x: maxX - clamp(touch.x / 1919, 0, 1) * (maxX - minX),
+                    y: maxY - clamp(touch.y / 1079, 0, 1) * (maxY - minY),
+                };
+            }
+
+            function addTouchTrailSegment(index, x, y, z) {
+                const samples = state.touchTrailSamples[index];
+                if (!samples) return;
+                const previous = state.touchTrailLastPositions[index];
+                if (!previous) {
+                    state.touchTrailLastPositions[index] = { x, y, z };
+                    return;
+                }
+                const distance = Math.hypot(x - previous.x, y - previous.y);
+                if (distance < TOUCH_TRAIL_MIN_DISTANCE) {
+                    return;
+                }
+                samples.unshift({
+                    x1: previous.x,
+                    y1: previous.y,
+                    x2: x,
+                    y2: y,
+                    z,
+                    time: performance.now(),
+                });
+                state.touchTrailLastPositions[index] = { x, y, z };
+                if (samples.length > TOUCH_TRAIL_LENGTH) {
+                    samples.length = TOUCH_TRAIL_LENGTH;
+                }
+            }
+
+            function updateTouchTrails(now = performance.now()) {
+                for (
+                    let touchIndex = 0;
+                    touchIndex < state.touchTrailMeshes.length;
+                    touchIndex += 1
+                ) {
+                    const meshes = state.touchTrailMeshes[touchIndex];
+                    const samples = state.touchTrailSamples[touchIndex] || [];
+                    for (let index = samples.length - 1; index >= 0; index -= 1) {
+                        if (now - samples[index].time > TOUCH_TRAIL_LIFETIME_MS) {
+                            samples.splice(index, 1);
+                        }
+                    }
+                    for (let index = 0; index < meshes.length; index += 1) {
+                        const mesh = meshes[index];
+                        const sample = samples[index];
+                        if (!sample) {
+                            mesh.visible = false;
+                            continue;
+                        }
+                        const ageFade = clamp(
+                            1 - (now - sample.time) / TOUCH_TRAIL_LIFETIME_MS,
+                            0,
+                            1,
+                        );
+                        const countFade =
+                            1 - (index / TOUCH_TRAIL_LENGTH) * 0.45;
+                        const dx = sample.x2 - sample.x1;
+                        const dy = sample.y2 - sample.y1;
+                        const length = Math.hypot(dx, dy);
+                        mesh.position.set(
+                            sample.x1 + dx * 0.5,
+                            sample.y1 + dy * 0.5,
+                            sample.z,
+                        );
+                        mesh.rotation.z = Math.atan2(dy, dx);
+                        mesh.scale.x = Math.max(length, 0.001);
+                        mesh.material.color.set(state.highlightColor);
+                        mesh.material.opacity =
+                            TOUCH_TRAIL_MAX_OPACITY * ageFade * countFade;
+                        mesh.visible = mesh.material.opacity > 0.02;
+                    }
+                }
+            }
+
+            function updateTouchPoints(touches) {
+                const bounds =
+                    state.touchPointMeshes[0]?.parent?.userData.touchBounds;
+                if (!bounds) return;
+
                 for (
                     let index = 0;
                     index < state.touchPointMeshes.length;
@@ -768,13 +881,21 @@
                     const active =
                         !!touch && (touch.active || touch.x > 0 || touch.y > 0);
                     point.visible = active;
-                    if (!active) continue;
+                    if (!active) {
+                        state.touchTrailLastPositions[index] = null;
+                        continue;
+                    }
 
-                    point.position.x =
-                        maxX - clamp(touch.x / 1919, 0, 1) * (maxX - minX);
-                    point.position.y =
-                        maxY - clamp(touch.y / 1079, 0, 1) * (maxY - minY);
+                    const position = getTouchPointPosition(touch, bounds);
+                    point.position.x = position.x;
+                    point.position.y = position.y;
                     point.material.color.set(state.highlightColor);
+                    addTouchTrailSegment(
+                        index,
+                        point.position.x,
+                        point.position.y,
+                        point.position.z,
+                    );
                 }
             }
 
@@ -843,6 +964,11 @@
                 }
                 for (const touchPoint of state.touchPointMeshes) {
                     touchPoint.material.color.set(state.highlightColor);
+                }
+                for (const trailMeshes of state.touchTrailMeshes) {
+                    for (const trail of trailMeshes) {
+                        trail.material.color.set(state.highlightColor);
+                    }
                 }
             }
 
@@ -1205,6 +1331,7 @@
                 state.lastAnimationTs = now;
                 applyGyroToScene(delta);
                 updatePoseAngles();
+                updateTouchTrails(now);
                 if (state.renderer && state.scene && state.camera) {
                     state.renderer.render(state.scene, state.camera);
                 }
