@@ -1380,18 +1380,16 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   }
 
   int8_t scroll = 0;
+  if (ProcessGyroMouse(report, len, touch)) {
+    mouse_send = true;
+  }
   if (ParseTouchScroll(touch, &scroll)) {
-    // Scroll and gyro are mutually exclusive; scroll takes priority.
     // Accumulate in case the endpoint wasn't ready last frame.
     const int16_t new_wheel =
         static_cast<int16_t>(g_controller.mouse.wheel) + scroll;
     g_controller.mouse.wheel = static_cast<int8_t>(
         new_wheel > 127 ? 127 : new_wheel < -127 ? -127 : new_wheel);
     mouse_send = true;
-  } else {
-    if (ProcessGyroMouse(report, len, touch)) {
-      mouse_send = true;
-    }
   }
 
   // Also flush any accumulated x/y/wheel from previously dropped frames.
