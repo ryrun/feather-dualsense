@@ -909,10 +909,13 @@ bool ParseTouchpadClick(uint8_t const* report, uint16_t len,
   bool mouse_changed = false;
 
   if (clicked) {
-    // Read X position of touch point 0 to determine zone (0-1919 → three equal thirds).
+    // Use the leftmost active finger to determine the zone (0-1919 → thirds).
     uint16_t x = 960;  // default to middle
     if (touch.point[0].active) {
       x = touch.point[0].x;
+    }
+    if (touch.point[1].active && (!touch.point[0].active || touch.point[1].x < x)) {
+      x = touch.point[1].x;
     }
 
     if (x < 640) {
