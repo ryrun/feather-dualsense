@@ -34,22 +34,30 @@
             main {
                 width: min(1180px, calc(100% - 32px));
                 margin: 0 auto;
-                padding: 24px 0 40px;
+                padding: 12px 0 32px;
             }
 
             header {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 16px;
-                margin-bottom: 14px;
+                gap: 12px;
+                margin-bottom: 8px;
             }
 
             h1 {
                 margin: 0;
-                font-size: 24px;
+                font-size: 17px;
                 font-weight: 650;
                 letter-spacing: 0;
+            }
+
+            .header-actions {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 10px;
+                min-width: 0;
             }
 
             h2 {
@@ -64,7 +72,7 @@
                 border-radius: 6px;
                 background: #1d242d;
                 color: #f4f7fb;
-                padding: 10px 14px;
+                padding: 8px 12px;
                 font: inherit;
                 cursor: pointer;
             }
@@ -84,9 +92,14 @@
             }
 
             .status {
-                margin-bottom: 18px;
+                max-width: 42vw;
+                overflow: hidden;
                 color: #aeb8c6;
-                font-size: 14px;
+                font-size: 12px;
+                line-height: 1.25;
+                text-align: right;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
             .viewer {
@@ -305,6 +318,21 @@
             }
 
             @media (max-width: 900px) {
+                header {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .header-actions {
+                    justify-content: space-between;
+                    width: 100%;
+                }
+
+                .status {
+                    max-width: calc(100vw - 128px);
+                    text-align: left;
+                }
+
                 .viewer {
                     grid-template-columns: 1fr;
                 }
@@ -319,10 +347,11 @@
         <main>
             <header>
                 <h1>Feather DualSense HID Remapper</h1>
-                <button id="connect">Connect</button>
+                <div class="header-actions">
+                    <div id="connection" class="status">No device connected.</div>
+                    <button id="connect">Connect</button>
+                </div>
             </header>
-
-            <div id="connection" class="status">No device connected.</div>
 
             <div class="viewer">
                 <div class="scene-panel">
