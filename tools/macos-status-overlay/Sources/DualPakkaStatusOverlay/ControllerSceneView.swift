@@ -17,6 +17,9 @@ struct ControllerSceneView: NSViewRepresentable {
         view.backgroundColor = backgroundColor
         view.allowsCameraControl = false
         view.autoenablesDefaultLighting = false
+        view.isPlaying = true
+        view.rendersContinuously = true
+        view.preferredFramesPerSecond = 60
         context.coordinator.setModelURL(modelURL)
         return view
     }

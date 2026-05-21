@@ -7,6 +7,7 @@ struct OverlayView: View {
     @State private var sceneHighlightColor = AppColors.sceneHighlight
     @State private var sceneOnly = false
     @State private var window: NSWindow?
+    @State private var didApplyInitialWindowMode = false
 
     var body: some View {
         Group {
@@ -34,7 +35,10 @@ struct OverlayView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
                 .padding(18)
-                .frame(minWidth: 1280, minHeight: 740)
+                .frame(
+                    minWidth: WindowMetrics.normalContentSize.width,
+                    minHeight: WindowMetrics.normalContentSize.height
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(AppColors.background)
                 .foregroundStyle(AppColors.primary)
@@ -44,13 +48,16 @@ struct OverlayView: View {
             WindowAccessor { resolvedWindow in
                 if let resolvedWindow {
                     window = resolvedWindow
-                    applyWindowMode()
+                    if !didApplyInitialWindowMode {
+                        didApplyInitialWindowMode = true
+                        applyWindowMode(resize: true)
+                    }
                 }
             }
             .frame(width: 0, height: 0)
         )
         .onChange(of: sceneOnly) { _ in
-            applyWindowMode()
+            applyWindowMode(resize: true)
         }
     }
 
@@ -133,25 +140,28 @@ struct OverlayView: View {
         }
     }
 
-    private func applyWindowMode() {
+    private func applyWindowMode(resize: Bool) {
         guard let window else {
             return
         }
 
         if sceneOnly {
             window.styleMask = [.borderless]
-            window.minSize = NSSize(width: 800, height: 600)
-            window.maxSize = NSSize(width: 800, height: 600)
-            resizeWindowKeepingTopLeft(window, contentSize: NSSize(width: 800, height: 600))
+            window.minSize = WindowMetrics.sceneOnlyContentSize
+            window.maxSize = WindowMetrics.sceneOnlyContentSize
+            if resize {
+                resizeWindowKeepingTopLeft(window, contentSize: WindowMetrics.sceneOnlyContentSize)
+            }
         } else {
-            window.minSize = NSSize(width: 1280, height: 740)
-            window.maxSize = NSSize(
-                width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            window.minSize = WindowMetrics.normalContentSize
+            window.maxSize = WindowMetrics.unrestrictedMaxSize
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.titleVisibility = .visible
             window.titlebarAppearsTransparent = false
-            window.contentMinSize = NSSize(width: 1280, height: 740)
-            resizeWindowKeepingTopLeft(window, contentSize: NSSize(width: 1280, height: 740))
+            window.contentMinSize = WindowMetrics.normalContentSize
+            if resize {
+                resizeWindowKeepingTopLeft(window, contentSize: WindowMetrics.normalContentSize)
+            }
         }
     }
 
@@ -326,4 +336,13 @@ private enum AppColors {
     static let highlight = Color(red: 0.58, green: 0.94, blue: 0.74)
     static let obsBackground = Color(red: 1.0, green: 0.0, blue: 0.86)
     static let sceneHighlight = Color(red: 1.0, green: 0.02, blue: 0.0)
+}
+
+private enum WindowMetrics {
+    static let normalContentSize = NSSize(width: 1280, height: 740)
+    static let sceneOnlyContentSize = NSSize(width: 800, height: 600)
+    static let unrestrictedMaxSize = NSSize(
+        width: CGFloat.greatestFiniteMagnitude,
+        height: CGFloat.greatestFiniteMagnitude
+    )
 }

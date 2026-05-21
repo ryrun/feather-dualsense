@@ -44,9 +44,21 @@ private enum CommandLineModelURL {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var activity: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .latencyCritical],
+            reason: "Keep DualPakka status overlay rendering smoothly"
+        )
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let activity {
+            ProcessInfo.processInfo.endActivity(activity)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
