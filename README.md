@@ -28,6 +28,10 @@ Responsiveness is a core design goal. The firmware forces the DualSense input en
 
 A separate gamepad mode is included for games where native controller input works better and gyro is not useful, such as racing games. By default, it emulates a Google Stadia Controller because that profile works reliably for the author's macOS cloud gaming setup with Shadow PC and GeForce Now. It avoids PlayStation-controller mapping issues in Shadow PC when USB forwarding is not used, and avoids XInput-style duplicate-controller detection through SDL2. A DualShock 4 backend can be selected at compile time for testing. Rumble and DualSense-specific features are intentionally out of scope.
 
+## Community
+
+Gyro gaming discussion and related controller projects can be found in the [Gyro Gaming Community Discord](https://discord.gg/QjfShjvWv).
+
 ## Hardware
 
 - Target board: Adafruit Feather RP2040 USB Host, Type A, 5723
