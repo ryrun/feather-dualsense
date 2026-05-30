@@ -382,6 +382,9 @@
                                 value="#ff0000"
                             />
                         </label>
+                        <button id="resetPose" type="button">
+                            Reset Pose
+                        </button>
                         <button id="toggleFullscreen" type="button">
                             Fullscreen
                         </button>
@@ -533,10 +536,20 @@
             const MODEL_URL = `./dualsenseende.obj?${Math.random().toString(36).slice(2)}`;
             const COLOR_STORAGE_KEY = "dualpakka-status-overlay-colors";
             const RECONNECT_INTERVAL_MS = 2000;
-            const INPUT_MODE =
-                new URLSearchParams(window.location.search).get("input") ||
-                "webhid";
+            const QUERY = new URLSearchParams(window.location.search);
+            const INPUT_MODE = QUERY.get("input") || "webhid";
             const SSE_MODE = INPUT_MODE === "sse";
+            const DEFAULT_HIGHLIGHT_COLOR = "#ff0000";
+
+            function normalizeHexColor(value) {
+                const color = String(value || "").trim();
+                const match = color.match(/^#?([0-9a-fA-F]{6})$/);
+                return match ? `#${match[1].toLowerCase()}` : null;
+            }
+
+            const URL_HIGHLIGHT_COLOR = normalizeHexColor(
+                QUERY.get("highlight"),
+            );
 
             const FLAGS = {
                 connected: 1 << 0,
@@ -672,7 +685,10 @@
                 touchTrailLastPositions: [null, null],
                 buttonElements: new Map(),
                 sceneBackgroundColor: SSE_MODE ? "transparent" : "#000000",
-                highlightColor: "#ff0000",
+                highlightColor:
+                    SSE_MODE && URL_HIGHLIGHT_COLOR
+                        ? URL_HIGHLIGHT_COLOR
+                        : DEFAULT_HIGHLIGHT_COLOR,
                 latestGyro: { x: 0, y: 0, z: 0 },
                 latestAccel: { x: 0, y: 0, z: 0 },
                 gyroArmed: false,
@@ -1323,6 +1339,14 @@
                 );
             }
 
+            function resetPose() {
+                state.yawAngle = 0;
+                state.pitchAngle = 0;
+                state.rollAngle = 0;
+                applyPoseState();
+                updatePoseAngles();
+            }
+
             function wrapAngleDelta(angle) {
                 return Math.atan2(Math.sin(angle), Math.cos(angle));
             }
@@ -1893,8 +1917,16 @@
                 setSceneExpanded(!state.sceneExpanded);
             });
 
+            ids.resetPose.addEventListener("click", () => {
+                resetPose();
+            });
+
             ids.exitFullscreen.addEventListener("click", () => {
-                setSceneExpanded(false);
+                if (SSE_MODE) {
+                    resetPose();
+                } else {
+                    setSceneExpanded(false);
+                }
             });
 
             ids.backgroundColor.addEventListener("input", () => {
@@ -1917,6 +1949,9 @@
 
             document.documentElement.classList.toggle("sse-mode", SSE_MODE);
             document.body.classList.toggle("sse-mode", SSE_MODE);
+            if (SSE_MODE) {
+                ids.exitFullscreen.textContent = "Reset Pose";
+            }
 
             loadColorSettings();
             applySceneColors();

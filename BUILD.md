@@ -135,6 +135,8 @@ Then add this URL as an OBS Browser Source:
 http://127.0.0.1:8765/tools/status_overlay.html?input=sse
 ```
 
+The SSE overlay starts in fullscreen 3D mode with a transparent OBS background. Add `highlight=00ff00` or another six-digit hex color to override the default red highlight color.
+
 The bridge only serves `status_overlay.html`, `dualsenseende.obj`, and the `/events` SSE endpoint. Build a standalone bridge binary with:
 
 ```sh

@@ -155,6 +155,8 @@ Then use this OBS Browser Source URL:
 http://127.0.0.1:8765/tools/status_overlay.html?input=sse
 ```
 
+The SSE overlay starts in fullscreen 3D mode and uses a transparent background for OBS. Override the default red highlight color with a `highlight` query parameter, for example `?input=sse&highlight=00ff00`.
+
 The bridge only serves `status_overlay.html`, `dualsenseende.obj`, and the `/events` SSE endpoint. Chrome/WebHID usage remains unchanged when the `input=sse` query parameter is not used.
 
 The bridge uses a native non-exclusive IOKit HID reader on macOS. Windows and Linux builds use HIDAPI and select the Status HID interface by vendor usage when available, with known DualPakka status interface numbers as a fallback. On Linux, HID access may require udev permissions depending on the distribution.
