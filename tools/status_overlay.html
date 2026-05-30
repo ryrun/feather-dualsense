@@ -667,10 +667,7 @@
                 yawAngle: 0,
                 pitchAngle: 0,
                 rollAngle: 0,
-                returnToResetThreshold: 26,
-                returnToResetFadeRange: 220,
-                returnToResetFade: 0,
-                returnToResetRate: 2.6,
+                returnToResetRate: 0.03,
                 leftStickTiltMax: 0.28,
                 rightStickTiltMax: 0.28,
                 animationFrameId: null,
@@ -1295,24 +1292,23 @@
                 return Math.atan2(Math.sin(angle), Math.cos(angle));
             }
 
-            function applyStillReturnToReset(gyroMagnitude, delta) {
-                const motion = clamp(
-                    (gyroMagnitude - state.returnToResetThreshold) /
-                        state.returnToResetFadeRange,
-                    0,
-                    1,
+            function applyPermanentReturnToReset(delta) {
+                const step = state.returnToResetRate * delta;
+                state.yawAngle += clamp(
+                    wrapAngleDelta(-state.yawAngle),
+                    -step,
+                    step,
                 );
-                const targetFade = 1 - motion * motion;
-                const fadeBlend = 1 - Math.exp(-8 * delta);
-                state.returnToResetFade +=
-                    (targetFade - state.returnToResetFade) * fadeBlend;
-                const blend =
-                    (1 - Math.exp(-state.returnToResetRate * delta)) *
-                    state.returnToResetFade;
-
-                state.yawAngle += wrapAngleDelta(-state.yawAngle) * blend;
-                state.pitchAngle += wrapAngleDelta(-state.pitchAngle) * blend;
-                state.rollAngle += wrapAngleDelta(-state.rollAngle) * blend;
+                state.pitchAngle += clamp(
+                    wrapAngleDelta(-state.pitchAngle),
+                    -step,
+                    step,
+                );
+                state.rollAngle += clamp(
+                    wrapAngleDelta(-state.rollAngle),
+                    -step,
+                    step,
+                );
             }
 
             function updatePoseAngles() {
@@ -1343,13 +1339,12 @@
                     Math.abs(state.latestGyro.z) < gyroDeadzone
                         ? 0
                         : state.latestGyro.z;
-                const gyroMagnitude = Math.hypot(gx, gy, gz);
                 const scale = 0.00088;
 
                 state.yawAngle += gy * delta * scale;
                 state.pitchAngle += gx * delta * scale;
                 state.rollAngle += gz * delta * scale;
-                applyStillReturnToReset(gyroMagnitude, delta);
+                applyPermanentReturnToReset(delta);
                 applyPoseState();
             }
 

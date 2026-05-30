@@ -131,6 +131,7 @@ A WebHID status overlay is available at `tools/status_overlay.html`. It reads th
 - Configurable background and highlight colors stored in browser local storage
 - A fullscreen 3D view for OBS or streaming overlays
 - Automatic WebHID reconnect attempts after profile switches, because the board reboots and re-enumerates USB when the active profile changes
+- A very slow permanent return-to-center correction for the 3D controller pose
 
 Serve the repository through a local web server before opening the page, because the overlay uses ES module imports for Three.js:
 
@@ -145,25 +146,6 @@ Then open `http://localhost:8000/tools/status_overlay.html` in a WebHID-capable 
 ![Status overlay showing the DualSense Edge 3D view](docs/images/status-overlay.webp)
 
 [<img src="https://img.youtube.com/vi/DnCKK24FxAs/0.jpg" width="400">](https://www.youtube.com/watch?v=DnCKK24FxAs)
-
-### Native macOS status overlay
-
-A native SwiftUI/SceneKit macOS overlay is available in `tools/macos-status-overlay`. It reads the same vendor-defined Status HID report through IOKit HID and does not use WebHID or a browser. The app provides the same core live visualization path as the web overlay:
-
-- Native HID status reader for the Stadia and DualShock 4 backend VID/PID pairs
-- 3D DualSense Edge OBJ rendering with button highlighting, stick tilt, trigger intensity, touch points, and touch trails
-- Configurable 3D background and highlight colors
-- Normal dashboard window at 1280×740
-- Borderless 800×600 3D-only mode for OBS overlays, exited with Escape
-
-Run it with SwiftPM and pass the local OBJ model path:
-
-```sh
-cd tools/macos-status-overlay
-swift run DualPakkaStatusOverlay -- ../dualsenseende.obj
-```
-
-The DualSense Edge OBJ model is still a local-only asset and is not included in this repository.
 
 ## KBM Mapping
 

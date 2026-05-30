@@ -119,14 +119,3 @@ python3 -m http.server 8000
 ```
 
 Then open `http://localhost:8000/tools/status_overlay.html` and select the DualPakka device.
-
-## Native macOS Status Overlay
-
-The native SwiftUI/SceneKit overlay lives in `tools/macos-status-overlay`. It reads the Status HID interface directly through IOKit HID and can be used without a browser:
-
-```sh
-cd tools/macos-status-overlay
-swift run DualPakkaStatusOverlay -- ../dualsenseende.obj
-```
-
-The OBJ path is optional, but the 3D controller view needs a local `dualsenseende.obj` model. The normal dashboard window opens at 1280x740. The 3D-only mode opens a borderless 800x600 view for OBS-style overlays and exits with Escape.
