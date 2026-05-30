@@ -6,7 +6,7 @@
 namespace status_hid {
 
 constexpr uint8_t kReportId = 0x7e;
-constexpr uint8_t kReportVersion = 1;
+constexpr uint8_t kReportVersion = 2;
 constexpr uint16_t kVendorUsagePage = 0xff42;
 constexpr uint8_t kReportSize = 63;
 constexpr uint8_t kPacketSize = 64;
@@ -61,7 +61,8 @@ struct Report {
   int16_t accel_x;
   int16_t accel_y;
   int16_t accel_z;
-  uint8_t reserved[21];
+  int16_t lean_roll_centideg;
+  uint8_t reserved[19];
 } __attribute__((packed));
 
 static_assert(sizeof(Report) == kReportSize,
@@ -76,14 +77,16 @@ void SetConnected(ControllerType type);
 void SetDisconnected();
 void UpdateFromInput(uint8_t const* report, uint16_t len, uint64_t buttons,
                      const TouchPoint& touch0, const TouchPoint& touch1,
-                     bool gyro_mouse_active, bool gyro_stick_active);
+                     bool gyro_mouse_active, bool gyro_stick_active,
+                     int16_t lean_roll_centideg);
 #else
 inline void Init() {}
 inline void Task() {}
 inline void SetConnected(ControllerType) {}
 inline void SetDisconnected() {}
 inline void UpdateFromInput(uint8_t const*, uint16_t, uint64_t,
-                            const TouchPoint&, const TouchPoint&, bool, bool) {}
+                            const TouchPoint&, const TouchPoint&, bool, bool,
+                            int16_t) {}
 #endif
 
 }  // namespace status_hid

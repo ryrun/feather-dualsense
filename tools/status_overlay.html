@@ -278,6 +278,38 @@
                 text-align: center;
             }
 
+            .lean-meter {
+                position: relative;
+                width: 150px;
+                height: 10px;
+                overflow: hidden;
+                border: 1px solid #313b48;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.06);
+            }
+
+            .lean-meter::before {
+                content: "";
+                position: absolute;
+                left: calc(50% - 1px);
+                top: 0;
+                width: 2px;
+                height: 100%;
+                background: rgba(255, 255, 255, 0.3);
+                z-index: 1;
+            }
+
+            .lean-meter-fill {
+                position: absolute;
+                top: 0;
+                height: 100%;
+                background: var(--highlight);
+                opacity: 0.85;
+                transition:
+                    left 0.05s linear,
+                    width 0.05s linear;
+            }
+
             body.scene-expanded {
                 overflow: hidden;
             }
@@ -505,6 +537,17 @@
                         <dd id="accelY">-</dd>
                         <dt>Accel Z</dt>
                         <dd id="accelZ">-</dd>
+                        <dt>Lean Roll</dt>
+                        <dd id="leanRoll">-</dd>
+                        <dt>Lean</dt>
+                        <dd>
+                            <div class="lean-meter">
+                                <div
+                                    id="leanMeterFill"
+                                    class="lean-meter-fill"
+                                ></div>
+                            </div>
+                        </dd>
                     </dl>
                 </section>
 
@@ -697,7 +740,11 @@
                 yawAngle: 0,
                 pitchAngle: 0,
                 rollAngle: 0,
+                leanRollTargetAngle: 0,
+                leanRollFilteredAngle: 0,
                 returnToResetRate: 0.03,
+                leanRollFilterRate: 0.35,
+                leanRollCorrectionRate: 0.01,
                 leftStickTiltMax: 0.28,
                 rightStickTiltMax: 0.28,
                 animationFrameId: null,
@@ -1343,6 +1390,8 @@
                 state.yawAngle = 0;
                 state.pitchAngle = 0;
                 state.rollAngle = 0;
+                state.leanRollTargetAngle = 0;
+                state.leanRollFilteredAngle = 0;
                 applyPoseState();
                 updatePoseAngles();
             }
@@ -1363,10 +1412,27 @@
                     -step,
                     step,
                 );
+            }
+
+            function applyLeanRollCorrection(delta) {
+                const filterBlend = clamp(
+                    state.leanRollFilterRate * delta,
+                    0,
+                    1,
+                );
+                state.leanRollFilteredAngle +=
+                    wrapAngleDelta(
+                        state.leanRollTargetAngle -
+                            state.leanRollFilteredAngle,
+                    ) * filterBlend;
+
+                const correctionStep = state.leanRollCorrectionRate * delta;
                 state.rollAngle += clamp(
-                    wrapAngleDelta(-state.rollAngle),
-                    -step,
-                    step,
+                    wrapAngleDelta(
+                        state.leanRollFilteredAngle - state.rollAngle,
+                    ),
+                    -correctionStep,
+                    correctionStep,
                 );
             }
 
@@ -1404,6 +1470,7 @@
                 state.pitchAngle += gx * delta * scale;
                 state.rollAngle += gz * delta * scale;
                 applyPermanentReturnToReset(delta);
+                applyLeanRollCorrection(delta);
                 applyPoseState();
             }
 
@@ -1621,6 +1688,14 @@
                 dot.style.transform = `translate(${x * 42}px, ${y * 42}px)`;
             }
 
+            function setLeanMeter(valueCentideg) {
+                const normalized = clamp(valueCentideg / 4500, -1, 1);
+                const widthPercent = Math.abs(normalized) * 50;
+                ids.leanMeterFill.style.left =
+                    normalized < 0 ? `${50 - widthPercent}%` : "50%";
+                ids.leanMeterFill.style.width = `${widthPercent}%`;
+            }
+
             function writeU16(target, offset, value) {
                 target[offset] = value & 0xff;
                 target[offset + 1] = (value >> 8) & 0xff;
@@ -1664,6 +1739,7 @@
                 writeI16(payload, 36, report.accel?.x ?? 0);
                 writeI16(payload, 38, report.accel?.y ?? 0);
                 writeI16(payload, 40, report.accel?.z ?? 0);
+                writeI16(payload, 42, report.leanRollCentideg ?? 0);
                 return payload;
             }
 
@@ -1741,12 +1817,17 @@
                 const accelX = v.getInt16(36, true);
                 const accelY = v.getInt16(38, true);
                 const accelZ = v.getInt16(40, true);
+                const leanRoll = v.getInt16(42, true);
                 ids.gyroX.textContent = gyroX;
                 ids.gyroY.textContent = gyroY;
                 ids.gyroZ.textContent = gyroZ;
                 ids.accelX.textContent = accelX;
                 ids.accelY.textContent = accelY;
                 ids.accelZ.textContent = accelZ;
+                ids.leanRoll.textContent = `${(leanRoll / 100).toFixed(2)} deg`;
+                setLeanMeter(leanRoll);
+                state.leanRollTargetAngle =
+                    THREE.MathUtils.degToRad(leanRoll / 100);
 
                 state.latestGyro.x = gyroX;
                 state.latestGyro.y = gyroY;

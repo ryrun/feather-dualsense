@@ -49,6 +49,18 @@ struct ActiveController {
   int32_t gyro_bias_x_q8;
   int32_t gyro_bias_y_q8;
   int32_t gyro_bias_z_q8;
+#if LEAN_ESTIMATE_ENABLE
+  bool lean_gravity_initialized;
+  int32_t lean_gravity_x_q8;
+  int32_t lean_gravity_y_q8;
+  int32_t lean_gravity_z_q8;
+  int32_t lean_fused_roll_q8;
+  int32_t lean_gyro_z_bias_q8;
+  bool lean_neutral_initialized;
+  uint16_t lean_neutral_settle_reports;
+  int16_t lean_neutral_centideg;
+#endif
+  int16_t lean_roll_centideg;
   bool touch0_active;
   uint8_t touch0_id;
   int16_t touch0_last_y;
@@ -129,6 +141,18 @@ void ClearHidState() {
   g_controller.gyro_bias_x_q8 = 0;
   g_controller.gyro_bias_y_q8 = 0;
   g_controller.gyro_bias_z_q8 = 0;
+#if LEAN_ESTIMATE_ENABLE
+  g_controller.lean_gravity_initialized = false;
+  g_controller.lean_gravity_x_q8 = 0;
+  g_controller.lean_gravity_y_q8 = 0;
+  g_controller.lean_gravity_z_q8 = 0;
+  g_controller.lean_fused_roll_q8 = 0;
+  g_controller.lean_gyro_z_bias_q8 = 0;
+  g_controller.lean_neutral_initialized = false;
+  g_controller.lean_neutral_settle_reports = 0;
+  g_controller.lean_neutral_centideg = 0;
+#endif
+  g_controller.lean_roll_centideg = 0;
   g_controller.touch0_active = false;
   g_controller.touch0_scroll_accum = 0;
   g_controller.touch1_active = false;
@@ -342,6 +366,185 @@ int16_t ClampI16(int32_t value) {
   }
   return static_cast<int16_t>(value);
 }
+
+#if LEAN_ESTIMATE_ENABLE
+int16_t ClampCentideg90(int32_t value) {
+  if (value > 9000) {
+    return 9000;
+  }
+  if (value < -9000) {
+    return -9000;
+  }
+  return static_cast<int16_t>(value);
+}
+
+int32_t ApproxHypot32(int32_t a, int32_t b) {
+  a = Abs32(a);
+  b = Abs32(b);
+  const int32_t max_value = (a > b) ? a : b;
+  const int32_t min_value = (a > b) ? b : a;
+  return max_value + ((3 * min_value) >> 3);
+}
+
+int32_t ApproxAtanRatioCentideg(int32_t numerator, int32_t denominator) {
+  if (denominator <= 0 || numerator <= 0) {
+    return 0;
+  }
+
+  constexpr int32_t kQ15One = 1 << 15;
+  int32_t ratio_q15 = (numerator << 15) / denominator;
+  if (ratio_q15 > kQ15One) {
+    ratio_q15 = kQ15One;
+  }
+
+  // atan(x) approximation for x in [0, 1]:
+  // atan(x) ~= x * (pi/4 + 0.273 * (1 - x)).
+  constexpr int32_t kQuarterTurnCentideg = 4500;
+  constexpr int32_t kCorrectionCentideg = 1564;
+  const int32_t one_minus_q15 = kQ15One - ratio_q15;
+  const int32_t slope_centideg =
+      kQuarterTurnCentideg +
+      ((kCorrectionCentideg * one_minus_q15) >> 15);
+  return (ratio_q15 * slope_centideg + (kQ15One / 2)) >> 15;
+}
+
+int16_t ApproxAtan2Centideg(int32_t numerator, int32_t denominator) {
+  const bool negative = numerator < 0;
+  const int32_t abs_num = Abs32(numerator);
+  const int32_t abs_den = Abs32(denominator);
+  if (abs_num == 0) {
+    return 0;
+  }
+  if (abs_den == 0) {
+    return negative ? -9000 : 9000;
+  }
+
+  int32_t angle;
+  if (abs_num <= abs_den) {
+    angle = ApproxAtanRatioCentideg(abs_num, abs_den);
+  } else {
+    angle = 9000 - ApproxAtanRatioCentideg(abs_den, abs_num);
+  }
+  return ClampCentideg90(negative ? -angle : angle);
+}
+
+void UpdateLeanEstimate(uint8_t const* report, uint16_t len) {
+  if (len == 0) {
+    return;
+  }
+
+  const uint8_t report_base = (report[0] == 0x01) ? 1 : 0;
+  constexpr uint8_t kGyroOffset = 15;
+  constexpr uint8_t kAccelOffset = 21;
+  constexpr uint8_t kGyroZ = kGyroOffset + 4;
+  constexpr uint8_t kAccelZ = kAccelOffset + 4;
+  if (len <= report_base + kGyroZ + 1 ||
+      len <= report_base + kAccelZ + 1) {
+    return;
+  }
+
+  const int16_t gyro_z = ReadLe16(&report[report_base + kGyroOffset + 4]);
+  const int16_t accel_x = ReadLe16(&report[report_base + kAccelOffset + 0]);
+  const int16_t accel_y = ReadLe16(&report[report_base + kAccelOffset + 2]);
+  const int16_t accel_z = ReadLe16(&report[report_base + kAccelOffset + 4]);
+
+  constexpr uint8_t kAccelMagShift = 2;
+  const int32_t ax = static_cast<int32_t>(accel_x) >> kAccelMagShift;
+  const int32_t ay = static_cast<int32_t>(accel_y) >> kAccelMagShift;
+  const int32_t az = static_cast<int32_t>(accel_z) >> kAccelMagShift;
+  const int32_t mag_sq = ax * ax + ay * ay + az * az;
+
+  constexpr int32_t kOneG = LEAN_ACCEL_1G_RAW >> kAccelMagShift;
+  constexpr int32_t kMinPercent = 100 - LEAN_ACCEL_1G_TOLERANCE_PERCENT;
+  constexpr int32_t kMaxPercent = 100 + LEAN_ACCEL_1G_TOLERANCE_PERCENT;
+  constexpr int32_t kMinMag = (kOneG * kMinPercent) / 100;
+  constexpr int32_t kMaxMag = (kOneG * kMaxPercent) / 100;
+  constexpr int32_t kMinMagSq = kMinMag * kMinMag;
+  constexpr int32_t kMaxMagSq = kMaxMag * kMaxMag;
+  const bool accel_looks_like_gravity =
+      mag_sq >= kMinMagSq && mag_sq <= kMaxMagSq;
+
+  int16_t accel_roll_centideg = 0;
+  if (!g_controller.lean_gravity_initialized) {
+    g_controller.lean_gravity_initialized = true;
+    g_controller.lean_gravity_x_q8 = static_cast<int32_t>(accel_x) << 8;
+    g_controller.lean_gravity_y_q8 = static_cast<int32_t>(accel_y) << 8;
+    g_controller.lean_gravity_z_q8 = static_cast<int32_t>(accel_z) << 8;
+  } else if (accel_looks_like_gravity) {
+    g_controller.lean_gravity_x_q8 +=
+        ((static_cast<int32_t>(accel_x) << 8) -
+         g_controller.lean_gravity_x_q8) >>
+        LEAN_GRAVITY_FILTER_SHIFT;
+    g_controller.lean_gravity_y_q8 +=
+        ((static_cast<int32_t>(accel_y) << 8) -
+         g_controller.lean_gravity_y_q8) >>
+        LEAN_GRAVITY_FILTER_SHIFT;
+    g_controller.lean_gravity_z_q8 +=
+        ((static_cast<int32_t>(accel_z) << 8) -
+         g_controller.lean_gravity_z_q8) >>
+        LEAN_GRAVITY_FILTER_SHIFT;
+  }
+
+  const int16_t roll_centideg = ApproxAtan2Centideg(
+      g_controller.lean_gravity_x_q8 >> 8,
+      ApproxHypot32(g_controller.lean_gravity_y_q8 >> 8,
+                    g_controller.lean_gravity_z_q8 >> 8));
+  accel_roll_centideg =
+      ClampCentideg90((static_cast<int32_t>(roll_centideg) *
+                       LEAN_ROLL_SCALE_PERCENT) /
+                      100);
+
+  if (g_controller.lean_fused_roll_q8 == 0 && accel_looks_like_gravity) {
+    g_controller.lean_fused_roll_q8 =
+        static_cast<int32_t>(accel_roll_centideg) << 8;
+  }
+
+  const int32_t gyro_z_bias =
+      static_cast<int16_t>(g_controller.lean_gyro_z_bias_q8 >> 8);
+  const int32_t corrected_gyro_z = static_cast<int32_t>(gyro_z) - gyro_z_bias;
+  if (accel_looks_like_gravity &&
+      Abs32(corrected_gyro_z) < LEAN_GYRO_STILL_THRESHOLD_RAW) {
+    g_controller.lean_gyro_z_bias_q8 +=
+        ((static_cast<int32_t>(gyro_z) << 8) - g_controller.lean_gyro_z_bias_q8) /
+        400;
+  }
+
+  g_controller.lean_fused_roll_q8 +=
+      (corrected_gyro_z * LEAN_GYRO_ROLL_CENTIDEG_Q16_PER_REPORT) >> 8;
+
+  if (accel_looks_like_gravity) {
+    const int32_t accel_roll_q8 =
+        static_cast<int32_t>(accel_roll_centideg) << 8;
+    g_controller.lean_fused_roll_q8 +=
+        (accel_roll_q8 - g_controller.lean_fused_roll_q8) >>
+        LEAN_ACCEL_CORRECTION_SHIFT;
+  }
+
+  const int16_t fused_roll_centideg =
+      ClampCentideg90(g_controller.lean_fused_roll_q8 >> 8);
+
+  if (!g_controller.lean_neutral_initialized) {
+    if (accel_looks_like_gravity) {
+      if (g_controller.lean_neutral_settle_reports < LEAN_NEUTRAL_SETTLE_REPORTS) {
+        ++g_controller.lean_neutral_settle_reports;
+      }
+      if (g_controller.lean_neutral_settle_reports >= LEAN_NEUTRAL_SETTLE_REPORTS) {
+        g_controller.lean_neutral_centideg = fused_roll_centideg;
+        g_controller.lean_neutral_initialized = true;
+      }
+    } else {
+      g_controller.lean_neutral_settle_reports = 0;
+    }
+  }
+
+  g_controller.lean_roll_centideg = g_controller.lean_neutral_initialized
+      ? ClampCentideg90(static_cast<int32_t>(g_controller.lean_neutral_centideg) -
+                        fused_roll_centideg)
+      : 0;
+}
+#else
+void UpdateLeanEstimate(uint8_t const*, uint16_t) {}
+#endif
 
 int32_t ShapeGyroDeltaQ16(int16_t raw) {
   // Soft suppression: proportionally reduce values below threshold instead of
@@ -1318,11 +1521,13 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
 
   const uint64_t raw_buttons = ParseDualSenseButtons(report, len);
   const TouchState touch = ParseTouchState(report, len);
+  UpdateLeanEstimate(report, len);
   status_hid::UpdateFromInput(report, len, raw_buttons,
                               StatusTouchPoint(touch.point[0]),
                               StatusTouchPoint(touch.point[1]),
                               GyroMouseArmed(g_controller.active_mode, touch),
-                              GyroStickArmed(g_controller.active_mode, touch));
+                              GyroStickArmed(g_controller.active_mode, touch),
+                              g_controller.lean_roll_centideg);
 
   // Swipe gesture works in all modes.
   const SwipeDirection swipe_direction = ParseSwipeGesture(touch);

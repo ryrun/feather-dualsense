@@ -38,6 +38,26 @@
 // Pulse gyro movement below the assumed deadzone instead of dropping it.
 #define GYRO_STICK_DEADZONE_PULSE_ENABLE 1
 
+#ifndef LEAN_ESTIMATE_ENABLE
+#define LEAN_ESTIMATE_ENABLE FEATHER_STATUS_HID_ENABLE
+#endif
+// DualSense accelerometer raw magnitude is roughly 8192 at 1g.
+#define LEAN_ACCEL_1G_RAW 8192
+// Ignore accelerometer correction when movement pushes magnitude far away from 1g.
+#define LEAN_ACCEL_1G_TOLERANCE_PERCENT 35
+// IIR gravity alignment update: 1 / 2^shift per accepted input sample.
+#define LEAN_GRAVITY_FILTER_SHIFT 5
+// Empirical DualSense roll calibration. 52% maps a measured ~55 deg to ~45 deg.
+#define LEAN_ROLL_SCALE_PERCENT 52
+// Gyro-Z integration for lean fusion, centidegrees Q16 per raw sample at 1000 Hz.
+#define LEAN_GYRO_ROLL_CENTIDEG_Q16_PER_REPORT 330
+// Slow accelerometer correction of the gyro-integrated lean angle: 1 / 2^shift.
+#define LEAN_ACCEL_CORRECTION_SHIFT 7
+// Update lean gyro bias only when the corrected gyro is below this raw threshold.
+#define LEAN_GYRO_STILL_THRESHOLD_RAW 12
+// Number of valid gravity-like input reports before the current lean becomes neutral.
+#define LEAN_NEUTRAL_SETTLE_REPORTS 250
+
 #define TOUCHPAD_SCROLL_ENABLE 1
 #define TOUCHPAD_SCROLL_THRESHOLD 100
 

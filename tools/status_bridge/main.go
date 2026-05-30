@@ -53,6 +53,7 @@ type statusReport struct {
 	Touch1         touchPoint `json:"touch1"`
 	Gyro           vector3    `json:"gyro"`
 	Accel          vector3    `json:"accel"`
+	LeanRoll       int16      `json:"leanRollCentideg"`
 }
 
 type hub struct {
@@ -240,6 +241,7 @@ func parsePayload(payload []byte) statusReport {
 			Y: int16(binary.LittleEndian.Uint16(payload[38:40])),
 			Z: int16(binary.LittleEndian.Uint16(payload[40:42])),
 		},
+		LeanRoll: int16(binary.LittleEndian.Uint16(payload[42:44])),
 	}
 }
 

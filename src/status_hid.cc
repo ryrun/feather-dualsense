@@ -58,7 +58,8 @@ void SetDisconnected() {
 
 void UpdateFromInput(uint8_t const* report, uint16_t len, uint64_t buttons,
                      const TouchPoint& touch0, const TouchPoint& touch1,
-                     bool gyro_mouse_active, bool gyro_stick_active) {
+                     bool gyro_mouse_active, bool gyro_stick_active,
+                     int16_t lean_roll_centideg) {
   if (len == 0) {
     return;
   }
@@ -111,6 +112,7 @@ void UpdateFromInput(uint8_t const* report, uint16_t len, uint64_t buttons,
     g_report.accel_y = ReadLe16(&report[report_base + kAccelOffset + 2]);
     g_report.accel_z = ReadLe16(&report[report_base + kAccelOffset + 4]);
   }
+  g_report.lean_roll_centideg = lean_roll_centideg;
 }
 
 }  // namespace status_hid

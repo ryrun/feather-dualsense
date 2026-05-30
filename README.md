@@ -97,7 +97,7 @@ All multi-byte fields are little-endian. The report payload excludes the report 
 
 | Byte | Type | Field |
 | --- | --- | --- |
-| 0 | `uint8` | Report version, currently `1` |
+| 0 | `uint8` | Report version, currently `2` |
 | 1 | `uint8` | Controller type: `0` unknown, `1` DualSense, `2` DualSense Edge |
 | 2-3 | `uint16` | Sequence counter, incremented after each accepted status report |
 | 4-11 | `uint64` | Raw controller button bitmask using the `mapping::Button` order in `src/mapping.h` |
@@ -120,7 +120,8 @@ All multi-byte fields are little-endian. The report payload excludes the report 
 | 36-37 | `int16` | Accelerometer X, raw DualSense value |
 | 38-39 | `int16` | Accelerometer Y, raw DualSense value |
 | 40-41 | `int16` | Accelerometer Z, raw DualSense value |
-| 42-62 | `uint8[21]` | Reserved, currently zero |
+| 42-43 | `int16` | Neutralized lean roll angle in centidegrees, gravity/gyro fused |
+| 44-62 | `uint8[19]` | Reserved, currently zero |
 
 Status flags:
 
@@ -132,7 +133,7 @@ Status flags:
 | 3 | Gyro mouse armed |
 | 4 | Gyro stick armed |
 
-`gyro_mouse_armed` is set while the touchpad is touched in KBM or Hybrid profile. `gyro_stick_armed` is set while the touchpad is touched in Gyro Stick profile. The status report uses raw sensor values only; scaling, smoothing, 2D/3D rendering, and unit conversion belong in the overlay.
+`gyro_mouse_armed` is set while the touchpad is touched in KBM or Hybrid profile. `gyro_stick_armed` is set while the touchpad is touched in Gyro Stick profile. Gyro and accelerometer fields are raw DualSense values. `lean_roll_centideg` is the exception: it is a firmware-estimated, neutralized lean angle for testing future mapping behavior. 2D/3D rendering and any additional display conversion belong in the overlay.
 
 ## Status Overlay
 
