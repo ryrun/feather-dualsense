@@ -7,7 +7,7 @@ Embedded firmware for the Adafruit Feather RP2040 USB Host, Type A, product 5723
 - Compile-time selected USB HID gamepad backend: Google Stadia Controller by default (VID `0x18D1`, PID `0x9400`) or DualShock 4 (VID `0x054C`, PID `0x09CC`)
 - Optional vendor-defined status HID interface for overlays, enabled by default
 
-The active logical profile controls which reports are sent:
+The active profile determines which HID reports the Feather sends:
 
 - **KBM profile** – maps controller buttons to keyboard and mouse reports
 - **Gamepad profile** – forwards controller state as gamepad reports
@@ -16,21 +16,35 @@ The active logical profile controls which reports are sent:
 
 Perform a **full-width touchpad swipe** (single finger, edge to edge) to switch profiles: left→right selects the next profile, right→left selects the previous profile. The default profile order is KBM → Gamepad → Hybrid → KBM. If `FEATHER_GYRO_STICK_PROFILE=ON` is configured, the order is KBM → Gamepad → Hybrid → Gyro Stick → KBM. Profile switches are written to flash and reboot the board so USB re-enumerates with the selected profile's HID interface set. Empty or invalid flash storage falls back to KBM profile.
 
-There is no runtime configuration, UI, or configuration script. Mappings are compile-time tables in `src/mapping.h`.
+Configuration is intentionally compile-time only. Mappings live in `src/mapping.h`; there is no runtime configuration UI or script.
 
 ## Motivation
 
 The project started from the idea of making a wired DualSense or DualSense Edge feel like an Input Labs Alpakka-style gyro controller, using the Adafruit Feather RP2040 USB Host as a small standalone adapter. In this repository, "DualPakka" refers to that idea: PlayStation controller hardware with touch-activated gyro-to-mouse output and keyboard/mouse button mappings.
 
-In KBM mode, touching the DualSense touchpad enables gyro aiming and sends gyro movement as relative mouse input. The rest of the controller is mapped to keyboard and mouse actions, so games see a regular keyboard and mouse instead of a controller. This avoids PC-side mapper software such as Steam Input or reWASD.
+In KBM mode, touching the DualSense touchpad enables gyro aiming and sends gyro movement as relative mouse input. The rest of the controller is mapped to keyboard and mouse actions, so games see a regular keyboard and mouse instead of a controller. This avoids depending on PC-side mapper software such as Steam Input or reWASD.
 
 Responsiveness is a core design goal. The firmware forces the DualSense input endpoint to 1 ms and exposes 1 ms HID output reports, targeting a direct 1000 Hz input-to-output path.
 
 A separate gamepad mode is included for games where native controller input works better and gyro is not useful, such as racing games. By default, it emulates a Google Stadia Controller because that profile works reliably for the author's macOS cloud gaming setup with Shadow PC and GeForce Now. It avoids PlayStation-controller mapping issues in Shadow PC when USB forwarding is not used, and avoids XInput-style duplicate-controller detection through SDL2. A DualShock 4 backend can be selected at compile time for testing. Rumble and DualSense-specific features are intentionally out of scope.
 
+## Inspiration and Prior Work
+
+This project is inspired by the [Input Labs Alpakka controller](https://inputlabs.io/alpakka), especially its firmware-level approach to gyro aiming as mouse-like primary input without requiring PC-side remapping software. The goal is not to recreate Alpakka exactly, but to bring a similar control philosophy to wired DualSense and DualSense Edge controllers.
+
+It also builds on ideas explored in the earlier [DualSense Gyro Mouse Profile (Dualpakka)](https://github.com/ryrun/ds-hid-remapper-gyro-mouse-profile), a HID Remapper profile that mapped DualSense Edge gyro to mouse movement, activated gyro through touchpad contact, and used expression-based logic for Alpakka-style FPS controls.
+
+[HID Remapper](https://www.remapper.org/) and [jfedor2/hid-remapper](https://github.com/jfedor2/hid-remapper) also showed the potential of using a small standalone adapter to translate input on the device side, expose standard HID outputs to the host, and avoid keeping mapper software running on the PC. Seeing that potential, I used AI-assisted iterative development to build this dedicated DualSense/DualSense Edge firmware around the same standalone-adapter idea.
+
+Feather DualSense HID Remapper turns that profile experiment into dedicated firmware for the Adafruit Feather RP2040 USB Host, with profile-specific USB descriptors, 1000 Hz input/output handling, touch-activated gyro mouse and gyro stick modes, selectable gamepad backends, persistent profile switching, and a Status HID interface for overlays.
+
 ## Community
 
-Gyro gaming discussion and related controller projects can be found in the [Gyro Gaming Community Discord](https://discord.gg/QjfShjvWv).
+Useful communities and related project spaces:
+
+- [Gyro Gaming Community Discord](https://discord.gg/QjfShjvWv)
+- [Input Labs Discord](https://discord.gg/s8Yb4pfusT)
+- [HID Remapper Forum](https://forum.remapper.org/)
 
 ## Hardware
 
@@ -120,6 +134,8 @@ Status flags:
 
 `gyro_mouse_armed` is set while the touchpad is touched in KBM or Hybrid profile. `gyro_stick_armed` is set while the touchpad is touched in Gyro Stick profile. The status report uses raw sensor values only; scaling, smoothing, 2D/3D rendering, and unit conversion belong in the overlay.
 
+## Status Overlay
+
 A WebHID status overlay is available at `tools/status_overlay.html`. It reads the vendor-defined Status HID report directly from the browser and visualizes the controller state without any native helper process. The overlay currently provides:
 
 - A live 3D DualSense Edge view based on a local `tools/dualsenseende.obj` model
@@ -142,6 +158,8 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000/tools/status_overlay.html` in a WebHID-capable browser.
 
+### OBS Status Bridge
+
 OBS Browser Source does not provide WebHID access. For OBS, use the local Go Status Bridge, which reads the same Status HID interface and streams reports to the overlay with Server-Sent Events:
 
 ```sh
@@ -157,7 +175,7 @@ http://127.0.0.1:8765/tools/status_overlay.html?input=sse
 
 The SSE overlay starts in fullscreen 3D mode and uses a transparent background for OBS. Override the default red highlight color with a `highlight` query parameter, for example `?input=sse&highlight=00ff00`.
 
-The bridge only serves `status_overlay.html`, `dualsenseende.obj`, and the `/events` SSE endpoint. Chrome/WebHID usage remains unchanged when the `input=sse` query parameter is not used.
+For safety, the bridge only serves `status_overlay.html`, `dualsenseende.obj`, and the `/events` SSE endpoint. Chrome/WebHID usage remains unchanged when the `input=sse` query parameter is not used.
 
 The bridge uses a native non-exclusive IOKit HID reader on macOS. Windows and Linux builds use HIDAPI and select the Status HID interface by vendor usage when available, with known DualPakka status interface numbers as a fallback. On Linux, HID access may require udev permissions depending on the distribution.
 
