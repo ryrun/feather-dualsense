@@ -18,7 +18,7 @@
                 --panel: #171b21;
                 --line: #2c3440;
                 --muted: #8d99a8;
-                --highlight: #93f0bd;
+                --highlight: #ff0000;
             }
 
             * {
@@ -29,6 +29,15 @@
                 margin: 0;
                 min-height: 100vh;
                 background: #101214;
+            }
+
+            html.sse-mode,
+            body.sse-mode,
+            body.sse-mode main,
+            body.sse-mode .viewer,
+            body.sse-mode .scene-panel,
+            body.sse-mode #sceneCanvas {
+                background: transparent !important;
             }
 
             main {
@@ -370,7 +379,7 @@
                             <input
                                 id="highlightColor"
                                 type="color"
-                                value="#93f0bd"
+                                value="#ff0000"
                             />
                         </label>
                         <button id="toggleFullscreen" type="button">
@@ -524,6 +533,10 @@
             const MODEL_URL = `./dualsenseende.obj?${Math.random().toString(36).slice(2)}`;
             const COLOR_STORAGE_KEY = "dualpakka-status-overlay-colors";
             const RECONNECT_INTERVAL_MS = 2000;
+            const INPUT_MODE =
+                new URLSearchParams(window.location.search).get("input") ||
+                "webhid";
+            const SSE_MODE = INPUT_MODE === "sse";
 
             const FLAGS = {
                 connected: 1 << 0,
@@ -643,6 +656,7 @@
             const state = {
                 scene: null,
                 device: null,
+                eventSource: null,
                 reconnectTimer: null,
                 connecting: false,
                 camera: null,
@@ -657,8 +671,8 @@
                 touchTrailSamples: [[], []],
                 touchTrailLastPositions: [null, null],
                 buttonElements: new Map(),
-                sceneBackgroundColor: "#000000",
-                highlightColor: "#93f0bd",
+                sceneBackgroundColor: SSE_MODE ? "transparent" : "#000000",
+                highlightColor: "#ff0000",
                 latestGyro: { x: 0, y: 0, z: 0 },
                 latestAccel: { x: 0, y: 0, z: 0 },
                 gyroArmed: false,
@@ -926,6 +940,7 @@
             }
 
             function loadColorSettings() {
+                if (SSE_MODE) return;
                 try {
                     const raw = localStorage.getItem(COLOR_STORAGE_KEY);
                     if (!raw) return;
@@ -943,6 +958,7 @@
             }
 
             function saveColorSettings() {
+                if (SSE_MODE) return;
                 localStorage.setItem(
                     COLOR_STORAGE_KEY,
                     JSON.stringify({
@@ -952,18 +968,37 @@
                 );
             }
 
+            function sceneClearColor() {
+                return state.sceneBackgroundColor === "transparent"
+                    ? "#000000"
+                    : state.sceneBackgroundColor;
+            }
+
+            function sceneClearAlpha() {
+                return state.sceneBackgroundColor === "transparent" ? 0 : 1;
+            }
+
             function applySceneColors() {
-                ids.backgroundColor.value = state.sceneBackgroundColor;
+                ids.backgroundColor.value =
+                    state.sceneBackgroundColor === "transparent"
+                        ? "#000000"
+                        : state.sceneBackgroundColor;
                 ids.highlightColor.value = state.highlightColor;
                 document.documentElement.style.setProperty(
                     "--highlight",
                     state.highlightColor,
                 );
+                document.body.style.background = SSE_MODE
+                    ? "rgba(0, 0, 0, 0)"
+                    : "";
+                document.documentElement.style.background = SSE_MODE
+                    ? "rgba(0, 0, 0, 0)"
+                    : "";
                 document.querySelector(".scene-panel").style.background =
                     state.sceneBackgroundColor;
                 state.renderer?.setClearColor(
-                    new THREE.Color(state.sceneBackgroundColor),
-                    1,
+                    new THREE.Color(sceneClearColor()),
+                    sceneClearAlpha(),
                 );
                 for (const [id, mesh] of state.sceneButtons) {
                     if (id === "l2Button" || id === "r2Button") {
@@ -1366,13 +1401,14 @@
                 const renderer = new THREE.WebGLRenderer({
                     canvas: ids.sceneCanvas,
                     alpha: true,
+                    premultipliedAlpha: false,
                     antialias: true,
                 });
                 renderer.setPixelRatio(window.devicePixelRatio || 1);
                 renderer.outputColorSpace = THREE.SRGBColorSpace;
                 renderer.setClearColor(
-                    new THREE.Color(state.sceneBackgroundColor),
-                    1,
+                    new THREE.Color(sceneClearColor()),
+                    sceneClearAlpha(),
                 );
 
                 const scene = new THREE.Scene();
@@ -1561,6 +1597,52 @@
                 dot.style.transform = `translate(${x * 42}px, ${y * 42}px)`;
             }
 
+            function writeU16(target, offset, value) {
+                target[offset] = value & 0xff;
+                target[offset + 1] = (value >> 8) & 0xff;
+            }
+
+            function writeI16(target, offset, value) {
+                writeU16(target, offset, value & 0xffff);
+            }
+
+            function writeU64Hex(target, offset, hex) {
+                const normalized = String(hex).replace(/^0x/i, "") || "0";
+                let value = BigInt(`0x${normalized}`);
+                for (let index = 0; index < 8; index += 1) {
+                    target[offset + index] = Number(value & 0xffn);
+                    value >>= 8n;
+                }
+            }
+
+            function statusJsonToPayload(report) {
+                const payload = new Uint8Array(63);
+                payload[0] = report.version ?? 0;
+                payload[1] = report.controllerType ?? 0;
+                writeU16(payload, 2, report.sequence ?? 0);
+                writeU64Hex(payload, 4, report.buttons ?? "0");
+                payload[12] = report.leftX ?? 128;
+                payload[13] = report.leftY ?? 128;
+                payload[14] = report.rightX ?? 128;
+                payload[15] = report.rightY ?? 128;
+                payload[16] = report.l2 ?? 0;
+                payload[17] = report.r2 ?? 0;
+                writeU16(payload, 18, report.flags ?? 0);
+                payload[20] = report.touch0?.id ?? 0;
+                payload[21] = report.touch1?.id ?? 0;
+                writeU16(payload, 22, report.touch0?.x ?? 0);
+                writeU16(payload, 24, report.touch0?.y ?? 0);
+                writeU16(payload, 26, report.touch1?.x ?? 0);
+                writeU16(payload, 28, report.touch1?.y ?? 0);
+                writeI16(payload, 30, report.gyro?.x ?? 0);
+                writeI16(payload, 32, report.gyro?.y ?? 0);
+                writeI16(payload, 34, report.gyro?.z ?? 0);
+                writeI16(payload, 36, report.accel?.x ?? 0);
+                writeI16(payload, 38, report.accel?.y ?? 0);
+                writeI16(payload, 40, report.accel?.z ?? 0);
+                return payload;
+            }
+
             function parseStatusReport(reportId, data) {
                 if (reportId !== REPORT_ID || data.byteLength < 63) {
                     return;
@@ -1727,6 +1809,11 @@
             }
 
             async function connect() {
+                if (INPUT_MODE === "sse") {
+                    connectSse();
+                    return;
+                }
+
                 if (!("hid" in navigator)) {
                     ids.connection.textContent =
                         "WebHID is not available in this browser.";
@@ -1754,6 +1841,36 @@
                 if (!device) return;
                 if (!device.opened) await device.open();
                 attachDevice(device);
+            }
+
+            function connectSse() {
+                if (state.eventSource) return;
+
+                const url = new URL("/events", window.location.href);
+                const source = new EventSource(url);
+                state.eventSource = source;
+                ids.connection.textContent = `Connecting to bridge: ${url.href}`;
+                ids.connect.textContent = "SSE";
+                ids.connect.disabled = true;
+
+                source.addEventListener("open", () => {
+                    ids.connection.textContent = "Connected to Status Bridge";
+                });
+                source.addEventListener("message", (event) => {
+                    try {
+                        const report = JSON.parse(event.data);
+                        parseStatusReport(
+                            report.reportId ?? REPORT_ID,
+                            statusJsonToPayload(report),
+                        );
+                    } catch (error) {
+                        ids.connection.textContent = `SSE parse failed: ${error.message}`;
+                    }
+                });
+                source.addEventListener("error", () => {
+                    ids.connection.textContent =
+                        "Waiting for Status Bridge events...";
+                });
             }
 
             function initButtons() {
@@ -1798,12 +1915,18 @@
                 }
             });
 
+            document.documentElement.classList.toggle("sse-mode", SSE_MODE);
+            document.body.classList.toggle("sse-mode", SSE_MODE);
+
             loadColorSettings();
             applySceneColors();
             initButtons();
             initScene();
 
-            if ("hid" in navigator) {
+            if (SSE_MODE) {
+                setSceneExpanded(true);
+                connectSse();
+            } else if ("hid" in navigator) {
                 navigator.hid.addEventListener("disconnect", (event) => {
                     if (event.device === state.device) {
                         setDisconnectedStatus();

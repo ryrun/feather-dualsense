@@ -123,7 +123,7 @@ Status flags:
 A WebHID status overlay is available at `tools/status_overlay.html`. It reads the vendor-defined Status HID report directly from the browser and visualizes the controller state without any native helper process. The overlay currently provides:
 
 - A live 3D DualSense Edge view based on a local `tools/dualsenseende.obj` model
-- Controller pose visualization from raw gyro data, with return-to-center behavior while the controller is still
+- Controller pose visualization from raw gyro data, with a very slow permanent return-to-center correction
 - Button highlighting for named OBJ parts, including fallback-rendered Fn and rear paddle buttons when those parts are not present in the OBJ
 - Stick tilt visualization and active-stick rings
 - Two-finger touchpad visualization with moving touch markers on the 3D touchpad surface
@@ -131,7 +131,6 @@ A WebHID status overlay is available at `tools/status_overlay.html`. It reads th
 - Configurable background and highlight colors stored in browser local storage
 - A fullscreen 3D view for OBS or streaming overlays
 - Automatic WebHID reconnect attempts after profile switches, because the board reboots and re-enumerates USB when the active profile changes
-- A very slow permanent return-to-center correction for the 3D controller pose
 
 Serve the repository through a local web server before opening the page, because the overlay uses ES module imports for Three.js:
 
@@ -142,6 +141,23 @@ python3 -m http.server 8000
 ```
 
 Then open `http://localhost:8000/tools/status_overlay.html` in a WebHID-capable browser.
+
+OBS Browser Source does not provide WebHID access. For OBS, use the local Go Status Bridge, which reads the same Status HID interface and streams reports to the overlay with Server-Sent Events:
+
+```sh
+cd tools/status_bridge
+go run .
+```
+
+Then use this OBS Browser Source URL:
+
+```text
+http://127.0.0.1:8765/tools/status_overlay.html?input=sse
+```
+
+The bridge only serves `status_overlay.html`, `dualsenseende.obj`, and the `/events` SSE endpoint. Chrome/WebHID usage remains unchanged when the `input=sse` query parameter is not used.
+
+The bridge uses a native non-exclusive IOKit HID reader on macOS. Windows and Linux builds use HIDAPI and select the Status HID interface by vendor usage when available, with known DualPakka status interface numbers as a fallback. On Linux, HID access may require udev permissions depending on the distribution.
 
 ![Status overlay showing the DualSense Edge 3D view](docs/images/status-overlay.webp)
 

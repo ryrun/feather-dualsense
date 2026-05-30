@@ -13,3 +13,4 @@ pico-sdk/
 *.a
 .DS_Store
 tools/dualsenseende.obj
+tools/status_bridge/dualpakka-status-bridge

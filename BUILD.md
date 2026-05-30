@@ -119,3 +119,27 @@ python3 -m http.server 8000
 ```
 
 Then open `http://localhost:8000/tools/status_overlay.html` and select the DualPakka device.
+
+## OBS Status Overlay Bridge
+
+OBS Browser Source cannot use WebHID directly. Use the local Go bridge to read the Status HID interface and stream reports to the HTML overlay through Server-Sent Events:
+
+```sh
+cd tools/status_bridge
+go run .
+```
+
+Then add this URL as an OBS Browser Source:
+
+```text
+http://127.0.0.1:8765/tools/status_overlay.html?input=sse
+```
+
+The bridge only serves `status_overlay.html`, `dualsenseende.obj`, and the `/events` SSE endpoint. Build a standalone bridge binary with:
+
+```sh
+cd tools/status_bridge
+go build .
+```
+
+The macOS build uses native IOKit and opens the Status HID interface non-exclusively. Windows and Linux builds use HIDAPI. Build them on the target OS, or provide a matching cgo cross-toolchain. On Linux, add udev permissions for the DualPakka VID/PID if the bridge cannot open the HID interface as a normal user.
