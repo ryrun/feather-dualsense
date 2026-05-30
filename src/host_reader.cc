@@ -1510,6 +1510,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
                                             uint8_t instance,
                                             uint8_t const* report,
                                             uint16_t len) {
+  const uint32_t callback_start_us = time_us_32();
   if (!g_controller.active ||
       g_controller.dev_addr != dev_addr ||
       g_controller.instance != instance) {
@@ -1533,6 +1534,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
   const SwipeDirection swipe_direction = ParseSwipeGesture(touch);
   if (swipe_direction != SwipeDirection::kNone) {
     HandleModeSwitch(swipe_direction);
+    status_hid::RecordTiming(callback_start_us, time_us_32());
     return;
   }
   FlushPendingOutputs();
@@ -1566,6 +1568,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
 
     FlushPendingOutputs();
     ArmReceiveReport();
+    status_hid::RecordTiming(callback_start_us, time_us_32());
     return;
   }
   bool keyboard_send = false;
@@ -1621,6 +1624,7 @@ extern "C" void tuh_hid_report_received_cb(uint8_t dev_addr,
     g_controller.mouse.pan = 0;
   }
   ArmReceiveReport();
+  status_hid::RecordTiming(callback_start_us, time_us_32());
 }
 
 extern "C" void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t instance,

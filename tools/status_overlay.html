@@ -188,6 +188,29 @@
                 gap: 12px;
             }
 
+            .timing-section {
+                grid-column: span 2;
+                min-width: 0;
+            }
+
+            .section-heading {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+
+            .section-heading h2 {
+                margin: 0;
+            }
+
+            .timing-reset {
+                padding: 4px 8px;
+                font-size: 11px;
+                line-height: 1.2;
+            }
+
             section {
                 padding: 14px;
             }
@@ -210,6 +233,38 @@
                 text-align: right;
             }
 
+            .timing-table {
+                width: 100%;
+                table-layout: fixed;
+                border-collapse: collapse;
+                font-size: 12px;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .timing-table th,
+            .timing-table td {
+                padding: 5px 6px;
+                border-bottom: 1px solid rgba(49, 59, 72, 0.65);
+                text-align: right;
+                white-space: nowrap;
+            }
+
+            .timing-table th:first-child,
+            .timing-table td:first-child {
+                color: var(--muted);
+                text-align: left;
+            }
+
+            .timing-table th {
+                color: var(--muted);
+                font-weight: 600;
+            }
+
+            .timing-table th:first-child,
+            .timing-table td:first-child {
+                width: 88px;
+            }
+
             .flags,
             .button-grid {
                 display: flex;
@@ -229,9 +284,9 @@
 
             .flag.on,
             .key.active {
-                border-color: #2e7d58;
+                border-color: #5b6f8a;
                 color: var(--highlight);
-                background: #123022;
+                background: rgba(91, 111, 138, 0.18);
             }
 
             .stick-grid {
@@ -380,6 +435,10 @@
 
                 .scene-panel {
                     height: 420px;
+                }
+
+                .timing-section {
+                    grid-column: span 1;
                 }
             }
         </style>
@@ -551,6 +610,75 @@
                     </dl>
                 </section>
 
+                <section class="timing-section">
+                    <div class="section-heading">
+                        <h2>Timing</h2>
+                        <button
+                            id="resetTiming"
+                            class="timing-reset"
+                            type="button"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                    <table class="timing-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Last</th>
+                                <th>Window</th>
+                                <th>Min</th>
+                                <th>Max</th>
+                                <th>Avg</th>
+                                <th>Median</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Input</td>
+                                <td id="inputIntervalLast">-</td>
+                                <td id="inputIntervalMax">-</td>
+                                <td id="inputIntervalMinSession">-</td>
+                                <td id="inputIntervalMaxSession">-</td>
+                                <td id="inputIntervalAvgSession">-</td>
+                                <td id="inputIntervalMedian">-</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>Callback</td>
+                                <td id="callbackDurationLast">-</td>
+                                <td id="callbackDurationMax">-</td>
+                                <td id="callbackDurationMinSession">-</td>
+                                <td id="callbackDurationMaxSession">-</td>
+                                <td id="callbackDurationAvgSession">-</td>
+                                <td id="callbackDurationMedian">-</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>Status Busy</td>
+                                <td id="statusBusyCount">-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td id="statusBusyTotal">-</td>
+                            </tr>
+                            <tr>
+                                <td>Late Inputs</td>
+                                <td id="inputLateCount">-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td id="inputLateTotal">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
                 <section>
                     <h2>Flags</h2>
                     <div class="flags">
@@ -696,6 +824,23 @@
                 [...document.querySelectorAll("[id]")].map((el) => [el.id, el]),
             );
 
+            function createTimingState() {
+                return {
+                    inputSamples: [],
+                    callbackSamples: [],
+                    inputMin: null,
+                    inputMax: 0,
+                    inputSum: 0,
+                    inputCount: 0,
+                    callbackMin: null,
+                    callbackMax: 0,
+                    callbackSum: 0,
+                    callbackCount: 0,
+                    lateTotal: 0,
+                    busyTotal: 0,
+                };
+            }
+
             const controllerTypes = new Map([
                 [0, "Unknown"],
                 [1, "DualSense"],
@@ -708,6 +853,7 @@
             const TOUCH_TRAIL_LIFETIME_MS = 420;
             const TOUCH_TRAIL_MIN_DISTANCE = 0.008;
             const TOUCH_TRAIL_MAX_OPACITY = 0.46;
+            const TIMING_MEDIAN_SAMPLE_LIMIT = 600;
 
             const state = {
                 scene: null,
@@ -747,6 +893,7 @@
                 leanRollCorrectionRate: 0.01,
                 leftStickTiltMax: 0.28,
                 rightStickTiltMax: 0.28,
+                timing: createTimingState(),
                 animationFrameId: null,
                 sceneExpanded: false,
             };
@@ -1696,6 +1843,121 @@
                 ids.leanMeterFill.style.width = `${widthPercent}%`;
             }
 
+            function addTimingSample(samples, value) {
+                if (value <= 0) return;
+                samples.push(value);
+                if (samples.length > TIMING_MEDIAN_SAMPLE_LIMIT) {
+                    samples.shift();
+                }
+            }
+
+            function medianTiming(samples) {
+                if (!samples.length) return null;
+                const sorted = [...samples].sort((a, b) => a - b);
+                const middle = Math.floor(sorted.length / 2);
+                return sorted.length % 2 === 0
+                    ? (sorted[middle - 1] + sorted[middle]) / 2
+                    : sorted[middle];
+            }
+
+            function formatTiming(value) {
+                return value == null ? "-" : `${Math.round(value)} us`;
+            }
+
+            function resetTimingStats() {
+                state.timing = createTimingState();
+                [
+                    ids.inputIntervalLast,
+                    ids.inputIntervalMax,
+                    ids.inputIntervalMinSession,
+                    ids.inputIntervalMaxSession,
+                    ids.inputIntervalAvgSession,
+                    ids.inputIntervalMedian,
+                    ids.callbackDurationLast,
+                    ids.callbackDurationMax,
+                    ids.callbackDurationMinSession,
+                    ids.callbackDurationMaxSession,
+                    ids.callbackDurationAvgSession,
+                    ids.callbackDurationMedian,
+                    ids.statusBusyCount,
+                    ids.statusBusyTotal,
+                    ids.inputLateCount,
+                    ids.inputLateTotal,
+                ].forEach((el) => {
+                    el.textContent = "-";
+                });
+            }
+
+            function updateTimingStats({
+                inputLast,
+                inputMax,
+                callbackLast,
+                callbackMax,
+                lateCount,
+                busyCount,
+            }) {
+                const timing = state.timing;
+                if (inputLast > 0) {
+                    timing.inputMin =
+                        timing.inputMin == null
+                            ? inputLast
+                            : Math.min(timing.inputMin, inputLast);
+                    timing.inputSum += inputLast;
+                    timing.inputCount += 1;
+                    addTimingSample(timing.inputSamples, inputLast);
+                }
+                if (inputMax > timing.inputMax) {
+                    timing.inputMax = inputMax;
+                }
+
+                if (callbackLast > 0) {
+                    timing.callbackMin =
+                        timing.callbackMin == null
+                            ? callbackLast
+                            : Math.min(timing.callbackMin, callbackLast);
+                    timing.callbackSum += callbackLast;
+                    timing.callbackCount += 1;
+                    addTimingSample(timing.callbackSamples, callbackLast);
+                }
+                if (callbackMax > timing.callbackMax) {
+                    timing.callbackMax = callbackMax;
+                }
+
+                timing.lateTotal += lateCount;
+                timing.busyTotal += busyCount;
+
+                ids.inputIntervalMinSession.textContent = formatTiming(
+                    timing.inputMin,
+                );
+                ids.inputIntervalMaxSession.textContent = formatTiming(
+                    timing.inputMax,
+                );
+                ids.inputIntervalAvgSession.textContent = formatTiming(
+                    timing.inputCount
+                        ? timing.inputSum / timing.inputCount
+                        : null,
+                );
+                ids.inputIntervalMedian.textContent = formatTiming(
+                    medianTiming(timing.inputSamples),
+                );
+                ids.callbackDurationMinSession.textContent = formatTiming(
+                    timing.callbackMin,
+                );
+                ids.callbackDurationMaxSession.textContent = formatTiming(
+                    timing.callbackMax,
+                );
+                ids.callbackDurationAvgSession.textContent = formatTiming(
+                    timing.callbackCount
+                        ? timing.callbackSum / timing.callbackCount
+                        : null,
+                );
+                ids.callbackDurationMedian.textContent = formatTiming(
+                    medianTiming(timing.callbackSamples),
+                );
+                ids.inputLateTotal.textContent = timing.lateTotal;
+                ids.statusBusyTotal.textContent = timing.busyTotal;
+            }
+
             function writeU16(target, offset, value) {
                 target[offset] = value & 0xff;
                 target[offset + 1] = (value >> 8) & 0xff;
@@ -1740,6 +2002,32 @@
                 writeI16(payload, 38, report.accel?.y ?? 0);
                 writeI16(payload, 40, report.accel?.z ?? 0);
                 writeI16(payload, 42, report.leanRollCentideg ?? 0);
+                writeU16(
+                    payload,
+                    44,
+                    report.timing?.inputIntervalLastUs ?? 0,
+                );
+                writeU16(
+                    payload,
+                    46,
+                    report.timing?.inputIntervalMaxUs ?? 0,
+                );
+                writeU16(
+                    payload,
+                    48,
+                    report.timing?.callbackDurationLastUs ?? 0,
+                );
+                writeU16(
+                    payload,
+                    50,
+                    report.timing?.callbackDurationMaxUs ?? 0,
+                );
+                writeU16(payload, 52, report.timing?.inputLateCount ?? 0);
+                writeU16(
+                    payload,
+                    54,
+                    report.timing?.statusSendBusyCount ?? 0,
+                );
                 return payload;
             }
 
@@ -1828,6 +2116,26 @@
                 setLeanMeter(leanRoll);
                 state.leanRollTargetAngle =
                     THREE.MathUtils.degToRad(leanRoll / 100);
+                const inputIntervalLast = v.getUint16(44, true);
+                const inputIntervalMax = v.getUint16(46, true);
+                const callbackDurationLast = v.getUint16(48, true);
+                const callbackDurationMax = v.getUint16(50, true);
+                const inputLateCount = v.getUint16(52, true);
+                const statusBusyCount = v.getUint16(54, true);
+                ids.inputIntervalLast.textContent = `${inputIntervalLast} us`;
+                ids.inputIntervalMax.textContent = `${inputIntervalMax} us`;
+                ids.callbackDurationLast.textContent = `${callbackDurationLast} us`;
+                ids.callbackDurationMax.textContent = `${callbackDurationMax} us`;
+                ids.inputLateCount.textContent = inputLateCount;
+                ids.statusBusyCount.textContent = statusBusyCount;
+                updateTimingStats({
+                    inputLast: inputIntervalLast,
+                    inputMax: inputIntervalMax,
+                    callbackLast: callbackDurationLast,
+                    callbackMax: callbackDurationMax,
+                    lateCount: inputLateCount,
+                    busyCount: statusBusyCount,
+                });
 
                 state.latestGyro.x = gyroX;
                 state.latestGyro.y = gyroY;
@@ -2000,6 +2308,10 @@
 
             ids.resetPose.addEventListener("click", () => {
                 resetPose();
+            });
+
+            ids.resetTiming.addEventListener("click", () => {
+                resetTimingStats();
             });
 
             ids.exitFullscreen.addEventListener("click", () => {

@@ -11,18 +11,37 @@ namespace status_hid {
 namespace {
 
 constexpr uint32_t kReportIntervalUs = 1000000u / FEATHER_STATUS_HID_RATE_HZ;
+constexpr uint16_t kLateInputThresholdUs = 1500;
 
 Report g_report = {};
 uint32_t g_last_send_us = 0;
+uint32_t g_last_input_us = 0;
+uint16_t g_interval_last_us = 0;
+uint16_t g_interval_max_us = 0;
+uint16_t g_callback_last_us = 0;
+uint16_t g_callback_max_us = 0;
+uint16_t g_input_late_count = 0;
+uint16_t g_status_send_busy_count = 0;
 
 int16_t ReadLe16(uint8_t const* data) {
   return static_cast<int16_t>(static_cast<uint16_t>(data[0]) |
                               (static_cast<uint16_t>(data[1]) << 8));
 }
 
+uint16_t ClampU16(uint32_t value) {
+  return value > 0xffffu ? 0xffffu : static_cast<uint16_t>(value);
+}
+
 void ResetPayload() {
   memset(&g_report, 0, sizeof(g_report));
   g_report.version = kReportVersion;
+}
+
+void ResetTimingWindow() {
+  g_interval_max_us = 0;
+  g_callback_max_us = 0;
+  g_input_late_count = 0;
+  g_status_send_busy_count = 0;
 }
 
 }  // namespace
@@ -39,21 +58,38 @@ void Task() {
 
   Report report = g_report;
   report.sequence = static_cast<uint16_t>(report.sequence + 1);
+  report.input_interval_last_us = g_interval_last_us;
+  report.input_interval_max_us = g_interval_max_us;
+  report.callback_duration_last_us = g_callback_last_us;
+  report.callback_duration_max_us = g_callback_max_us;
+  report.input_late_count = g_input_late_count;
+  report.status_send_busy_count = g_status_send_busy_count;
   if (device_out::SendStatus(reinterpret_cast<uint8_t const*>(&report),
                              sizeof(report))) {
     g_report.sequence = report.sequence;
     g_last_send_us = now;
+    ResetTimingWindow();
+  } else if (g_status_send_busy_count != 0xffffu) {
+    ++g_status_send_busy_count;
   }
 }
 
 void SetConnected(ControllerType type) {
   ResetPayload();
+  g_last_input_us = 0;
+  g_interval_last_us = 0;
+  g_callback_last_us = 0;
+  ResetTimingWindow();
   g_report.controller_type = static_cast<uint8_t>(type);
   g_report.flags = kFlagControllerConnected;
 }
 
 void SetDisconnected() {
   ResetPayload();
+  g_last_input_us = 0;
+  g_interval_last_us = 0;
+  g_callback_last_us = 0;
+  ResetTimingWindow();
 }
 
 void UpdateFromInput(uint8_t const* report, uint16_t len, uint64_t buttons,
@@ -113,6 +149,28 @@ void UpdateFromInput(uint8_t const* report, uint16_t len, uint64_t buttons,
     g_report.accel_z = ReadLe16(&report[report_base + kAccelOffset + 4]);
   }
   g_report.lean_roll_centideg = lean_roll_centideg;
+}
+
+void RecordTiming(uint32_t callback_start_us, uint32_t callback_end_us) {
+  if (g_last_input_us != 0) {
+    const uint16_t interval =
+        ClampU16(static_cast<uint32_t>(callback_start_us - g_last_input_us));
+    g_interval_last_us = interval;
+    if (interval > g_interval_max_us) {
+      g_interval_max_us = interval;
+    }
+    if (interval > kLateInputThresholdUs && g_input_late_count != 0xffffu) {
+      ++g_input_late_count;
+    }
+  }
+  g_last_input_us = callback_start_us;
+
+  const uint16_t duration =
+      ClampU16(static_cast<uint32_t>(callback_end_us - callback_start_us));
+  g_callback_last_us = duration;
+  if (duration > g_callback_max_us) {
+    g_callback_max_us = duration;
+  }
 }
 
 }  // namespace status_hid

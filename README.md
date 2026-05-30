@@ -121,7 +121,13 @@ All multi-byte fields are little-endian. The report payload excludes the report 
 | 38-39 | `int16` | Accelerometer Y, raw DualSense value |
 | 40-41 | `int16` | Accelerometer Z, raw DualSense value |
 | 42-43 | `int16` | Neutralized lean roll angle in centidegrees, gravity/gyro fused |
-| 44-62 | `uint8[19]` | Reserved, currently zero |
+| 44-45 | `uint16` | Last accepted DualSense input interval, microseconds |
+| 46-47 | `uint16` | Maximum accepted DualSense input interval since the last status report |
+| 48-49 | `uint16` | Last HID input callback processing duration, microseconds |
+| 50-51 | `uint16` | Maximum HID input callback processing duration since the last status report |
+| 52-53 | `uint16` | Count of accepted input intervals above 1500 us since the last status report |
+| 54-55 | `uint16` | Count of busy Status HID sends since the last successful status report |
+| 56-62 | `uint8[7]` | Reserved, currently zero |
 
 Status flags:
 

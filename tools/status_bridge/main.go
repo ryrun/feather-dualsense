@@ -54,6 +54,16 @@ type statusReport struct {
 	Gyro           vector3    `json:"gyro"`
 	Accel          vector3    `json:"accel"`
 	LeanRoll       int16      `json:"leanRollCentideg"`
+	Timing         timingInfo `json:"timing"`
+}
+
+type timingInfo struct {
+	InputIntervalLast uint16 `json:"inputIntervalLastUs"`
+	InputIntervalMax  uint16 `json:"inputIntervalMaxUs"`
+	CallbackLast      uint16 `json:"callbackDurationLastUs"`
+	CallbackMax       uint16 `json:"callbackDurationMaxUs"`
+	InputLateCount    uint16 `json:"inputLateCount"`
+	StatusBusyCount   uint16 `json:"statusSendBusyCount"`
 }
 
 type hub struct {
@@ -242,6 +252,14 @@ func parsePayload(payload []byte) statusReport {
 			Z: int16(binary.LittleEndian.Uint16(payload[40:42])),
 		},
 		LeanRoll: int16(binary.LittleEndian.Uint16(payload[42:44])),
+		Timing: timingInfo{
+			InputIntervalLast: binary.LittleEndian.Uint16(payload[44:46]),
+			InputIntervalMax:  binary.LittleEndian.Uint16(payload[46:48]),
+			CallbackLast:      binary.LittleEndian.Uint16(payload[48:50]),
+			CallbackMax:       binary.LittleEndian.Uint16(payload[50:52]),
+			InputLateCount:    binary.LittleEndian.Uint16(payload[52:54]),
+			StatusBusyCount:   binary.LittleEndian.Uint16(payload[54:56]),
+		},
 	}
 }
 

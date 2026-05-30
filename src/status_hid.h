@@ -62,7 +62,13 @@ struct Report {
   int16_t accel_y;
   int16_t accel_z;
   int16_t lean_roll_centideg;
-  uint8_t reserved[19];
+  uint16_t input_interval_last_us;
+  uint16_t input_interval_max_us;
+  uint16_t callback_duration_last_us;
+  uint16_t callback_duration_max_us;
+  uint16_t input_late_count;
+  uint16_t status_send_busy_count;
+  uint8_t reserved[7];
 } __attribute__((packed));
 
 static_assert(sizeof(Report) == kReportSize,
@@ -79,6 +85,7 @@ void UpdateFromInput(uint8_t const* report, uint16_t len, uint64_t buttons,
                      const TouchPoint& touch0, const TouchPoint& touch1,
                      bool gyro_mouse_active, bool gyro_stick_active,
                      int16_t lean_roll_centideg);
+void RecordTiming(uint32_t callback_start_us, uint32_t callback_end_us);
 #else
 inline void Init() {}
 inline void Task() {}
@@ -87,6 +94,7 @@ inline void SetDisconnected() {}
 inline void UpdateFromInput(uint8_t const*, uint16_t, uint64_t,
                             const TouchPoint&, const TouchPoint&, bool, bool,
                             int16_t) {}
+inline void RecordTiming(uint32_t, uint32_t) {}
 #endif
 
 }  // namespace status_hid
