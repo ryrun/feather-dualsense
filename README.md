@@ -28,11 +28,21 @@ Responsiveness is a core design goal. The firmware forces the DualSense input en
 
 A separate gamepad mode is included for games where native controller input works better and gyro is not useful, such as racing games. By default, it emulates a Google Stadia Controller because that profile works reliably for the author's macOS cloud gaming setup with Shadow PC and GeForce Now. It avoids PlayStation-controller mapping issues in Shadow PC when USB forwarding is not used, and avoids XInput-style duplicate-controller detection through SDL2. A DualShock 4 backend can be selected at compile time for testing. Rumble and DualSense-specific features are intentionally out of scope.
 
+## Dualpakka Tape Mod
+
+This project is intended to be used with a conductive tape mod on the DualSense touchpad, inspired by community Dualpakka examples such as [this r/GyroGaming post](https://www.reddit.com/r/GyroGaming/comments/1an5ngz). The tape extends touch activation to a more natural finger position near the face buttons, while the firmware still sees a normal touchpad touch and arms gyro in the usual way.
+
+Reliable detection needs enough conductive area on the touchpad itself. A very narrow strip can be inconsistent; a wider vertical contact patch on the touchpad improved recognition in testing. Use thin, flexible conductive or Faraday fabric tape with conductive adhesive.
+
+![DualSense Edge with conductive tape extending the touchpad activation area](docs/images/dualsense_tape_mod.webp)
+
 ## Inspiration and Prior Work
 
 This project is inspired by the [Input Labs Alpakka controller](https://inputlabs.io/alpakka), especially its firmware-level approach to gyro aiming as mouse-like primary input without requiring PC-side remapping software. The goal is not to recreate Alpakka exactly, but to bring a similar control philosophy to wired DualSense and DualSense Edge controllers.
 
 It also builds on ideas explored in the earlier [DualSense Gyro Mouse Profile (Dualpakka)](https://github.com/ryrun/ds-hid-remapper-gyro-mouse-profile), a HID Remapper profile that mapped DualSense Edge gyro to mouse movement, activated gyro through touchpad contact, and used expression-based logic for Alpakka-style FPS controls.
+
+[Dualpakka tape mod](https://www.reddit.com/r/GyroGaming/comments/1an5ngz) variants shared by the Gyro Gaming community helped shape the touch-activation ergonomics, including exposed conductive-tape layouts and cleaner internal-tape versions such as [My Dualpakka!](https://www.reddit.com/r/GyroGaming/comments/1jx147j).
 
 [HID Remapper](https://www.remapper.org/) and [jfedor2/hid-remapper](https://github.com/jfedor2/hid-remapper) also showed the potential of using a small standalone adapter to translate input on the device side, expose standard HID outputs to the host, and avoid keeping mapper software running on the PC. Seeing that potential, I used AI-assisted iterative development to build this dedicated DualSense/DualSense Edge firmware around the same standalone-adapter idea.
 
@@ -188,7 +198,13 @@ The bridge uses a native non-exclusive IOKit HID reader on macOS. Windows and Li
 
 ![Status overlay showing the DualSense Edge 3D view](docs/images/status-overlay.webp)
 
-[<img src="https://img.youtube.com/vi/DnCKK24FxAs/0.jpg" width="400">](https://www.youtube.com/watch?v=DnCKK24FxAs)
+## Gameplay Videos
+
+[<img src="https://img.youtube.com/vi/DnCKK24FxAs/0.jpg" width="320">](https://www.youtube.com/watch?v=DnCKK24FxAs)
+
+[<img src="https://img.youtube.com/vi/5mNf6ngFP-g/0.jpg" width="320">](https://www.youtube.com/watch?v=5mNf6ngFP-g)
+
+[<img src="https://img.youtube.com/vi/fnFV2maDhe0/0.jpg" width="320">](https://www.youtube.com/watch?v=fnFV2maDhe0)
 
 ## KBM Mapping
 
